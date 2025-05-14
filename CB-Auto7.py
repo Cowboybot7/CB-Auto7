@@ -132,9 +132,7 @@ async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Auto scan failed: {str(e)}")
         await context.bot.send_message(chat_id, f"❌ Auto scan failed: {str(e)}")
-    finally:
-        # Always schedule the next scan
-        
+
 def schedule_next_scan(job_queue, force_next_morning=False):
     """Schedule scans twice daily on weekdays with 1-hour reminders"""
     now = TIMEZONE.localize(datetime.now())
