@@ -2,59 +2,70 @@ name: 24/7 Monitor & Redeploy
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Reduce to 5 min to account for cold starts
+    - cron: '*/1 * * * *'  # Every minute
 
 jobs:
   ensure-availability:
     runs-on: ubuntu-latest
     steps:
-    - name: Check Health
-      id: health-check
-      run: |
-        STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://cb-auto7.onrender.com/healthz)
-        echo "Health check response: $STATUS_CODE"
-        
-        if [ "$STATUS_CODE" -ne 200 ]; then
-          echo "status=unhealthy" >> $GITHUB_OUTPUT
-          echo "reason=Service returned HTTP $STATUS_CODE" >> $GITHUB_OUTPUT
-        else
-          echo "status=healthy" >> $GITHUB_OUTPUT
-        fi
+      - name: Record Start Time
+        id: start
+        run: echo "start_time=$(date +%s)" >> $GITHUB_OUTPUT
 
-    - name: Redeploy if Unhealthy
-      if: steps.health-check.outputs.status == 'unhealthy'
-      run: |
-        # Trigger redeploy
-        RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-          -H "Content-Type: application/json" \
-          "https://api.render.com/v1/services/web/${{ secrets.RENDER_SERVICE_ID }}/deploys")
-        
-        if [ "$RESPONSE" -ne 201 ]; then
-          echo "redeploy_status=failed" >> $GITHUB_OUTPUT
-          echo "API Error: HTTP $RESPONSE" >&2
-          exit 1
-        else
-          echo "redeploy_status=success" >> $GITHUB_OUTPUT
-          sleep 300  # Wait 5 min to avoid spamming redeploys
-        fi
+      - name: Keep Alive & Health Check
+        id: health-check
+        run: |
+          echo "[$(date)] Starting keep-alive loop..."
 
-    - name: Notify Telegram
-      if: always()
-      env:
-        STATUS: ${{ steps.health-check.outputs.status }}
-        REASON: ${{ steps.health-check.outputs.reason || 'N/A' }}
-        REDEPLOY_STATUS: ${{ steps.redeploy-if-unhealthy.outputs.redeploy_status || 'none' }}
-      run: |
-        if [ "$STATUS" == "unhealthy" ]; then
-          MESSAGE="🚨 Service DOWN: automate7.onrender.com/healthz
-          - HTTP Status: ${{ env.REASON }}
-          - Redeploy Attempted: ${{ env.REDEPLOY_STATUS }}"
-        else
-          MESSAGE="✅ Service HEALTHY: cb-auto7.onrender.com/healthz"
-        fi
+          for i in {1..10}; do
+            curl -s https://cb-auto7.onrender.com/healthz > /dev/null
+            echo "[$(date)] Ping $i completed."
+            sleep 10
+          done
 
-        curl -s -X POST \
-          "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
-          -d "chat_id=${{ secrets.AUTHORIZED_USERS }}" \
-          -d "text=$MESSAGE"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://cb-auto7.onrender.com/healthz)
+          echo "[$(date)] Final HTTP status: $RESPONSE"
+
+          if [ "$RESPONSE" -ne 200 ]; then
+            echo "status=unhealthy" >> $GITHUB_OUTPUT
+          else
+            echo "status=healthy" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Redeploy if Unhealthy
+        if: steps.health-check.outputs.status == 'unhealthy'
+        run: |
+          echo "[$(date)] Service is unhealthy. Triggering redeploy..."
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            "https://api.render.com/v1/services/web/${{ secrets.RENDER_SERVICE_ID }}/deploys"
+
+      - name: Notify Telegram
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          EMOJI="✅"
+          if [ "$STATUS" != "success" ]; then EMOJI="❌"; fi
+
+          TIMESTAMP=$(TZ="Asia/Phnom_Penh" date '+%a %b %d %T %Z %Y')
+          END_TIME=$(date +%s)
+          START_TIME=${{ steps.start.outputs.start_time }}
+          DURATION=$((END_TIME - START_TIME))
+
+          MESSAGE=$(printf "%s *CB-Auto Deployment Status*\n\n⏱ *Time:* %s UTC\n⏳ *Duration:* %ds\n🚦 *Status:* %s" \
+            "$EMOJI" "$TIMESTAMP" "$DURATION" "$STATUS")
+
+          curl -s -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.AUTHORIZED_USERS }}" \
+            -d "text=$MESSAGE" \
+            -d "parse_mode=Markdown"
+
+          # Optional: Send link to GitHub Actions run
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.AUTHORIZED_USERS }}" \
+            -d "text=🔗 [View Logs on GitHub]($RUN_URL)" \
+            -d "parse_mode=Markdown"
