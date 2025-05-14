@@ -1,0 +1,9 @@
+selenium==4.15.2
+python-dotenv==1.0.0
+pytz==2023.3.post1
+pillow==10.0.0
+python-telegram-bot[job-queue]==20.5
+python-telegram-bot[webhooks]>=20.3
+cryptography>=3.4  # Required for SSL/webhooks
+aiohttp>=3.8
+flask
