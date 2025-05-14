@@ -1,0 +1,60 @@
+name: 24/7 Monitor & Redeploy
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Reduce to 10 min to account for cold starts
+
+jobs:
+  ensure-availability:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check Health
+      id: health-check
+      run: |
+        STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://automate7.onrender.com/healthz)
+        echo "Health check response: $STATUS_CODE"
+        
+        if [ "$STATUS_CODE" -ne 200 ]; then
+          echo "status=unhealthy" >> $GITHUB_OUTPUT
+          echo "reason=Service returned HTTP $STATUS_CODE" >> $GITHUB_OUTPUT
+        else
+          echo "status=healthy" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Redeploy if Unhealthy
+      if: steps.health-check.outputs.status == 'unhealthy'
+      run: |
+        # Trigger redeploy
+        RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          "https://api.render.com/v1/services/web/${{ secrets.RENDER_SERVICE_ID }}/deploys")
+        
+        if [ "$RESPONSE" -ne 201 ]; then
+          echo "redeploy_status=failed" >> $GITHUB_OUTPUT
+          echo "API Error: HTTP $RESPONSE" >&2
+          exit 1
+        else
+          echo "redeploy_status=success" >> $GITHUB_OUTPUT
+          sleep 300  # Wait 5 min to avoid spamming redeploys
+        fi
+
+    - name: Notify Telegram
+      if: always()
+      env:
+        STATUS: ${{ steps.health-check.outputs.status }}
+        REASON: ${{ steps.health-check.outputs.reason || 'N/A' }}
+        REDEPLOY_STATUS: ${{ steps.redeploy-if-unhealthy.outputs.redeploy_status || 'none' }}
+      run: |
+        if [ "$STATUS" == "unhealthy" ]; then
+          MESSAGE="🚨 Service DOWN: automate7.onrender.com/healthz
+          - HTTP Status: ${{ env.REASON }}
+          - Redeploy Attempted: ${{ env.REDEPLOY_STATUS }}"
+        else
+          MESSAGE="✅ Service HEALTHY: automate7.onrender.com/healthz"
+        fi
+
+        curl -s -X POST \
+          "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
+          -d "chat_id=${{ secrets.AUTHORIZED_USERS }}" \
+          -d "text=$MESSAGE"
