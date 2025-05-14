@@ -48,12 +48,12 @@ jobs:
           EMOJI="✅"
           if [ "$STATUS" != "success" ]; then EMOJI="❌"; fi
 
-          TIMESTAMP=$(TZ="Asia/Phnom_Penh" date '+%a %b %d %T %Z %Y')
+          TIMESTAMP=$(TZ="Asia/Phnom_Penh" date '+%a %b %d %T %Z (%z) %Y')
           END_TIME=$(date +%s)
           START_TIME=${{ steps.start.outputs.start_time }}
           DURATION=$((END_TIME - START_TIME))
 
-          MESSAGE=$(printf "%s *CB-Auto Deployment Status*\n\n⏱ *Time:* %s UTC\n⏳ *Duration:* %ds\n🚦 *Status:* %s" \
+          MESSAGE=$(printf "%s *CB-Auto Deployment Status*\n\n⏱ *Time:* %s\n⏳ *Duration:* %ds\n🚦 *Status:* %s" \
             "$EMOJI" "$TIMESTAMP" "$DURATION" "$STATUS")
 
           curl -s -X POST \
