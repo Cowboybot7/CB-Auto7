@@ -2,7 +2,7 @@ name: 24/7 Monitor & Redeploy
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Reduce to 10 min to account for cold starts
+    - cron: '*/5 * * * *'  # Reduce to 5 min to account for cold starts
 
 jobs:
   ensure-availability:
@@ -11,7 +11,7 @@ jobs:
     - name: Check Health
       id: health-check
       run: |
-        STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://automate7.onrender.com/healthz)
+        STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://cb-auto7.onrender.com/healthz)
         echo "Health check response: $STATUS_CODE"
         
         if [ "$STATUS_CODE" -ne 200 ]; then
@@ -51,7 +51,7 @@ jobs:
           - HTTP Status: ${{ env.REASON }}
           - Redeploy Attempted: ${{ env.REDEPLOY_STATUS }}"
         else
-          MESSAGE="✅ Service HEALTHY: automate7.onrender.com/healthz"
+          MESSAGE="✅ Service HEALTHY: cb-auto7.onrender.com/healthz"
         fi
 
         curl -s -X POST \
