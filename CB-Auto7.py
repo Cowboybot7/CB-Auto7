@@ -21,6 +21,7 @@ from telegram import BotCommand
 from math import radians, sin, cos, sqrt, atan2
 from selenium.common.exceptions import TimeoutException
 from threading import Lock
+from asyncio import create_task
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     """
@@ -54,6 +55,7 @@ CHAT_ID = os.getenv('CHAT_ID')
 
 active_drivers = {}
 driver_lock = Lock()
+scan_tasks = {}
 
 # Configure logging
 logging.basicConfig(
@@ -245,36 +247,39 @@ async def cancelauto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     chat_id = update.effective_chat.id
-    
+
     if user_id not in AUTHORIZED_USERS:
         await update.message.reply_text("❌ Unauthorized")
         return
 
+    task = scan_tasks.get(chat_id)
     with driver_lock:
-        if chat_id in active_drivers:
-            driver = active_drivers[chat_id]
-            try:
-                # 1. Capture screenshot first
-                filename = f"cancelled_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                driver.save_screenshot(filename)
-                with open(filename, 'rb') as photo:
-                    await update.message.reply_photo(photo=photo)
-                
-                # 2. Then quit driver
-                driver.quit()
-                await update.message.reply_text(f"🛑 Cancelled with screenshot: {filename}")
-                
-            except Exception as e:
-                await update.message.reply_text(f"⚠️ Cancellation error: {str(e)}")
-            finally:
-                try:
-                    del active_drivers[chat_id]
-                    if os.path.exists(filename):
-                        os.remove(filename)
-                except Exception as e:
-                    logger.error(f"Cleanup error: {str(e)}")
-        else:
-            await update.message.reply_text("ℹ️ No active operation to cancel")
+        driver = active_drivers.get(chat_id)
+
+    if not task and not driver:
+        await update.message.reply_text("ℹ️ No active operation to cancel")
+        return
+
+    if task:
+        task.cancel()
+        scan_tasks.pop(chat_id, None)
+
+    if driver:
+        try:
+            filename = f"cancelled_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            driver.save_screenshot(filename)
+            with open(filename, 'rb') as photo:
+                await update.message.reply_photo(photo=photo)
+            driver.quit()
+            await update.message.reply_text(f"🛑 Operation cancelled with screenshot: {filename}")
+        except Exception as e:
+            await update.message.reply_text(f"⚠️ Error during cancellation: {str(e)}")
+        finally:
+            del active_drivers[chat_id]
+            if os.path.exists(filename):
+                os.remove(filename)
+    else:
+        await update.message.reply_text("✅ Operation cancelled")
             
 # Update post_init
 async def post_init(application):
@@ -456,26 +461,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def scanin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle scanin command"""
     user_id = str(update.effective_user.id)
     chat_id = update.effective_chat.id
-    
+
     if user_id not in AUTHORIZED_USERS:
         await update.message.reply_text("❌ You are not authorized to use this bot")
         return
 
-    try:
-        await context.bot.send_message(chat_id, "⏳ Starting scan process...")
-        success = await perform_scan_in(context.bot, chat_id)
-        
-        if success:
-            await context.bot.send_message(chat_id, "✅ Scan-in process completed successfully!")
-        else:
-            await context.bot.send_message(chat_id, "❌ Scan-in failed. Check previous messages for details.")
-            
-    except Exception as e:
-        await context.bot.send_message(chat_id, f"⚠️ Critical error: {str(e)}")
-        logger.error(traceback.format_exc())
+    if chat_id in scan_tasks:
+        await update.message.reply_text("⚠️ A scan is already in progress. Use /cancel to stop it.")
+        return
+
+    await update.message.reply_text("⏳ Scan task started in background...")
+    
+    async def task_wrapper():
+        try:
+            success = await perform_scan_in(context.bot, chat_id)
+            if success:
+                await context.bot.send_message(chat_id, "✅ Scan-in process completed successfully!")
+            else:
+                await context.bot.send_message(chat_id, "❌ Scan-in failed. Check previous messages for details.")
+        finally:
+            scan_tasks.pop(chat_id, None)
+
+    task = create_task(task_wrapper())
+    scan_tasks[chat_id] = task
 
 def main():
     """Start the bot"""
