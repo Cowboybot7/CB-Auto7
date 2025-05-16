@@ -136,84 +136,66 @@ async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id, f"❌ Auto scan failed: {str(e)}")
 
 def schedule_next_scan(job_queue, force_next_morning=False):
-    """Schedule scans twice daily on weekdays with 1-hour reminders"""
+    """Schedule scans with 1-hour reminders: 
+    Mon–Fri (morning + evening), Sat (morning + afternoon)"""
     now = TIMEZONE.localize(datetime.now())
     
-    # Determine next scan time
-    if force_next_morning:
-        # Calculate next valid weekday morning
-        days_ahead = 1 if now.weekday() < 4 else (7 - now.weekday())
-        next_day_candidate = now + timedelta(days=days_ahead)
-        
-        # Handle same-day edge case
-        if next_day_candidate.date() == now.date():
-            days_ahead += 1
-        
-        # Find next weekday
-        while True:
-            next_day = now + timedelta(days=days_ahead)
-            if next_day.weekday() < 5:  # 0-4 = Monday-Friday
-                break
-            days_ahead += 1
-        
-        scan_type = "morning"
-        target_hour = 7  # Fixed morning hour
-        target_minute = random.randint(45, 59)
-        
-    else:
-        # Regular scheduling logic
-        if now.time() < dt_time(7, 59, tzinfo=TIMEZONE):
-            scan_type = "morning"
-            target_hour = 7
-            target_minute = random.randint(45, 59)
-        else:
-            scan_type = "evening"
-            target_hour = 18
-            target_minute = random.randint(7, 37)
-        
-        # Find next valid weekday
-        days_ahead = 0
-        while True:
-            next_day = now + timedelta(days=days_ahead)
-            if next_day.weekday() < 5:  # Weekday
-                break
-            days_ahead += 1
+    def get_next_slot(now):
+        # Define scan slots
+        scan_slots = {
+            0: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
+            1: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
+            2: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
+            3: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
+            4: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
+            5: [("morning", 7, 45, 59), ("afternoon", 12, 7, 17)],  # Saturday
+        }
 
-    # Create localized next_run datetime
-    next_run = TIMEZONE.localize(datetime.combine(
-        next_day.date(),
-        dt_time(target_hour, target_minute)
-    ))
-    
-    # Check if the calculated next_run is in the past
-    if next_run < now:
+        for day_offset in range(8):
+            future_day = now + timedelta(days=day_offset)
+            weekday = future_day.weekday()
+            if weekday in scan_slots:
+                for scan_type, hour, min_start, min_end in scan_slots[weekday]:
+                    candidate_time = TIMEZONE.localize(datetime.combine(
+                        future_day.date(),
+                        dt_time(hour, random.randint(min_start, min_end))
+                    ))
+                    if candidate_time > now:
+                        return scan_type, candidate_time
+        return None, None
+
+    if force_next_morning:
+        # Only schedule the next morning slot (either weekday or Sat)
+        for i in range(1, 8):
+            future = now + timedelta(days=i)
+            weekday = future.weekday()
+            if weekday in [0, 1, 2, 3, 4, 5]:
+                scan_type = "morning"
+                hour = 7
+                minute = random.randint(45, 59)
+                next_run = TIMEZONE.localize(datetime.combine(future.date(), dt_time(hour, minute)))
+                break
+    else:
+        scan_type, next_run = get_next_slot(now)
+
+    if not next_run or next_run < now:
         logger.info(f"⚠️ Adjusted next_run from {next_run} (past) to next morning")
         return schedule_next_scan(job_queue, force_next_morning=True)
-    
-    # Calculate time differences using original 'now'
-    delay_seconds = (next_run - now).total_seconds()
-    
-    # Clear existing jobs
+
+    # Clear old jobs
     for job in job_queue.get_jobs_by_name("auto_scanin") + job_queue.get_jobs_by_name("reminder"):
         job.schedule_removal()
 
-    # Schedule main scan job
-    job_queue.run_once(
-        auto_scanin_job, 
-        when=delay_seconds,
-        name="auto_scanin"
-    )
-    
-    # Schedule reminder if needed
+    delay_seconds = (next_run - now).total_seconds()
+
+    # Schedule main job
+    job_queue.run_once(auto_scanin_job, when=delay_seconds, name="auto_scanin")
+
+    # Schedule reminder
     reminder_time = next_run - timedelta(hours=1)
     if reminder_time > now:
         delay_reminder = (reminder_time - now).total_seconds()
-        job_queue.run_once(
-            send_reminder,
-            when=delay_reminder,
-            data=next_run,
-            name="reminder"
-        )
+        job_queue.run_once(send_reminder, when=delay_reminder, data=next_run, name="reminder")
         logger.info(f"⏰ Reminder scheduled for {reminder_time.strftime('%H:%M')} ICT")
 
     logger.info(f"⏰ Next {scan_type} scan scheduled: {next_run.strftime('%A, %H:%M')} ICT")
