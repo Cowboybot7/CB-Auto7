@@ -108,7 +108,6 @@ def create_driver():
         "longitude": lon,
         "accuracy": 100
     })
-    
     return driver, (lat, lon)
     
 async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
@@ -491,20 +490,5 @@ def main():
         allowed_updates=Update.ALL_TYPES,
     )
     
-# class HealthHandler(BaseHTTPRequestHandler):
-#     def do_GET(self):
-#         if self.path == '/healthz':
-#             self.send_response(200)
-#             self.end_headers()
-#             self.wfile.write(b'OK')
-#         else:
-#             self.send_response(404)
-#             self.end_headers()
-
-# def run_health_server():
-#     server = HTTPServer(('0.0.0.0', 8000), HealthHandler)
-#     print("Health check server running on port 8000")
-#     server.serve_forever()
-
 if __name__ == "__main__":
     main()
