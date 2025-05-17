@@ -129,10 +129,16 @@ async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
         logger.info("🔄 Starting automated scan...")
         await context.bot.send_message(chat_id, "⏰ Starting automated scan...")
         success = await perform_scan_in(context.bot, chat_id)
-        
     except Exception as e:
         logger.error(f"Auto scan failed: {str(e)}")
         await context.bot.send_message(chat_id, f"❌ Auto scan failed: {str(e)}")
+    finally:
+        # Only reschedule if no existing scan job is pending
+        existing_jobs = context.job_queue.get_jobs_by_name("auto_scanin")
+        if not existing_jobs:
+            schedule_next_scan(context.job_queue)
+        else:
+            logger.warning("⚠️ Skipping re-schedule to avoid duplicate auto_scanin jobs.")
 
 def schedule_next_scan(job_queue, force_next_morning=False):
     """Schedule scans with 1-hour reminders: 
@@ -176,7 +182,8 @@ def schedule_next_scan(job_queue, force_next_morning=False):
                 break
     else:
         scan_type, next_run = get_next_slot(now)
-
+        
+    # Check if the calculated next_run is in the past
     if not next_run or next_run < now:
         logger.info(f"⚠️ Adjusted next_run from {next_run} (past) to next morning")
         return schedule_next_scan(job_queue, force_next_morning=True)
