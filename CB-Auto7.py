@@ -56,6 +56,7 @@ CHAT_ID = os.getenv('CHAT_ID')
 active_drivers = {}
 driver_lock = Lock()
 scan_tasks = {}
+is_auto_scan_running = False
 
 # Configure logging
 logging.basicConfig(
@@ -124,6 +125,11 @@ async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Reminder error: {str(e)}")
         
 async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
+    global is_auto_scan_running
+    if is_auto_scan_running:
+        logger.warning("⚠️ Skipping auto scan: already running.")
+        return
+    is_auto_scan_running = True
     try:
         chat_id = os.getenv('CHAT_ID')
         logger.info("🔄 Starting automated scan...")
@@ -133,20 +139,23 @@ async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Auto scan failed: {str(e)}")
         await context.bot.send_message(chat_id, f"❌ Auto scan failed: {str(e)}")
     finally:
-        # Only reschedule if no existing scan job is pending
-        existing_jobs = context.job_queue.get_jobs_by_name("auto_scanin")
-        if not existing_jobs:
-            schedule_next_scan(context.job_queue)
-        else:
-            logger.warning("⚠️ Skipping re-schedule to avoid duplicate auto_scanin jobs.")
-
-def schedule_next_scan(job_queue, force_next_morning=False):
-    """Schedule scans with 1-hour reminders: 
-    Mon–Fri (morning + evening), Sat (morning + afternoon)"""
-    now = TIMEZONE.localize(datetime.now())
+        is_auto_scan_running = False
+        logger.info("✅ Auto scan job completed. Cleaning up and scheduling next.")
+        # Always remove old scheduled jobs (including self)
+        for job in context.job_queue.get_jobs_by_name("auto_scanin"):
+            job.schedule_removal()
+        for job in context.job_queue.get_jobs_by_name("reminder"):
+            job.schedule_removal()
     
+        # Schedule next job regardless of what just happened
+        schedule_next_scan(context.job_queue)
+        
+def schedule_next_scan(job_queue, force_next_morning=False):
+    """Schedule next scan and reminder safely."""
+
+    now = TIMEZONE.localize(datetime.now())
+
     def get_next_slot(now):
-        # Define scan slots
         scan_slots = {
             0: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
             1: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
@@ -161,50 +170,44 @@ def schedule_next_scan(job_queue, force_next_morning=False):
             weekday = future_day.weekday()
             if weekday in scan_slots:
                 for scan_type, hour, min_start, min_end in scan_slots[weekday]:
+                    minute = random.randint(min_start, min_end)
                     candidate_time = TIMEZONE.localize(datetime.combine(
                         future_day.date(),
-                        dt_time(hour, random.randint(min_start, min_end))
+                        dt_time(hour, minute)
                     ))
                     if candidate_time > now:
                         return scan_type, candidate_time
         return None, None
 
     if force_next_morning:
-        # Only schedule the next morning slot (either weekday or Sat)
         for i in range(1, 8):
             future = now + timedelta(days=i)
-            weekday = future.weekday()
-            if weekday in [0, 1, 2, 3, 4, 5]:
-                scan_type = "morning"
+            if future.weekday() in [0, 1, 2, 3, 4, 5]:
                 hour = 7
                 minute = random.randint(45, 59)
                 next_run = TIMEZONE.localize(datetime.combine(future.date(), dt_time(hour, minute)))
+                scan_type = "morning"
                 break
     else:
         scan_type, next_run = get_next_slot(now)
-        
-    # Check if the calculated next_run is in the past
-    if not next_run or next_run < now:
-        logger.info(f"⚠️ Adjusted next_run from {next_run} (past) to next morning")
+
+    if not next_run or next_run <= now:
+        logger.warning(f"⚠️ Calculated next_run ({next_run}) was in the past. Forcing next morning.")
         return schedule_next_scan(job_queue, force_next_morning=True)
 
-    # Clear old jobs
-    for job in job_queue.get_jobs_by_name("auto_scanin") + job_queue.get_jobs_by_name("reminder"):
-        job.schedule_removal()
-
     delay_seconds = (next_run - now).total_seconds()
+    reminder_time = next_run - timedelta(hours=1)
+    delay_reminder = (reminder_time - now).total_seconds()
 
-    # Schedule main job
+    # Schedule next scan
     job_queue.run_once(auto_scanin_job, when=delay_seconds, name="auto_scanin")
+    logger.info(f"✅ Scheduled next scan at {next_run.strftime('%Y-%m-%d %H:%M:%S')} ICT")
 
     # Schedule reminder
-    reminder_time = next_run - timedelta(hours=1)
-    if reminder_time > now:
-        delay_reminder = (reminder_time - now).total_seconds()
+    if delay_reminder > 0:
         job_queue.run_once(send_reminder, when=delay_reminder, data=next_run, name="reminder")
-        logger.info(f"⏰ Reminder scheduled for {reminder_time.strftime('%H:%M')} ICT")
+        logger.info(f"⏰ Scheduled reminder at {reminder_time.strftime('%Y-%m-%d %H:%M:%S')} ICT")
 
-    logger.info(f"⏰ Next {scan_type} scan scheduled: {next_run.strftime('%A, %H:%M')} ICT")
     return next_run
     
 async def cancelauto(update: Update, context: ContextTypes.DEFAULT_TYPE):
