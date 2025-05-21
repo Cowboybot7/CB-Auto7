@@ -127,20 +127,20 @@ async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
 async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
     global is_auto_scan_running
     if is_auto_scan_running:
-        logger.warning("⚠️ Skipping auto scan: already running.")
+        logger.warning("⚠️ Skipping auto mission: already running.")
         return
     is_auto_scan_running = True
     try:
         chat_id = os.getenv('CHAT_ID')
-        logger.info("🔄 Starting automated scan...")
-        await context.bot.send_message(chat_id, "⏰ Starting automated scan...")
+        logger.info("🔄 Starting automated mission...")
+        await context.bot.send_message(chat_id, "⏰ Starting automated mission...")
         success = await perform_scan_in(context.bot, chat_id)
     except Exception as e:
-        logger.error(f"Auto scan failed: {str(e)}")
-        await context.bot.send_message(chat_id, f"❌ Auto scan failed: {str(e)}")
+        logger.error(f"Automated mission failed: {str(e)}")
+        await context.bot.send_message(chat_id, f"❌ Automated mission failed: {str(e)}")
     finally:
         is_auto_scan_running = False
-        logger.info("✅ Auto scan job completed. Cleaning up and scheduling next.")
+        logger.info("✅ Mission automatically job completed. Cleaning up and scheduling next.")
         # Always remove old scheduled jobs (including self)
         for job in context.job_queue.get_jobs_by_name("auto_scanin"):
             job.schedule_removal()
@@ -208,7 +208,7 @@ def schedule_next_scan(job_queue, force_next_morning=False):
 
     # Schedule next scan
     job_queue.run_once(auto_scanin_job, when=delay_seconds, name="auto_scanin")
-    logger.info(f"✅ Scheduled next scan at {next_run.strftime('%Y-%m-%d %H:%M:%S')} ICT")
+    logger.info(f"✅ Scheduled next mission at {next_run.strftime('%Y-%m-%d %H:%M:%S')} ICT")
 
     # Schedule reminder
     if delay_reminder > 0:
@@ -226,7 +226,7 @@ async def cancelauto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Remove both scan and reminder jobs
     jobs = context.job_queue.get_jobs_by_name("auto_scanin") + context.job_queue.get_jobs_by_name("reminder")
     if not jobs:
-        await update.message.reply_text("ℹ️ No scheduled auto scans to cancel")
+        await update.message.reply_text("ℹ️ No scheduled auto missions to cancel")
         return
 
     for job in jobs:
@@ -236,9 +236,9 @@ async def cancelauto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     next_run = schedule_next_scan(context.job_queue, force_next_morning=True)
     
     await update.message.reply_text(
-        f"🚫 Auto scans canceled until {next_run.strftime('%A')} morning\n"
-        f"⏰ Next scan: {next_run.strftime('%a %H:%M')} ICT\n"
-        "⚠️ Reminder: Manual scan still available via /scanin",
+        f"🚫 Auto missions canceled until {next_run.strftime('%A')} morning\n"
+        f"⏰ Next mission: {next_run.strftime('%a %H:%M')} ICT\n"
+        "⚠️ Reminder: Manual mission still available via /scanin",
         parse_mode="Markdown"
     )
 
@@ -283,8 +283,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def post_init(application):
     await application.bot.set_my_commands([
         BotCommand("start", "Show welcome message"),
-        BotCommand("scanin", "Initiate attendance scan"),
-        BotCommand("cancelauto", "Cancel next auto scan and reschedule"),
+        BotCommand("scanin", "Initiate mission"),
+        BotCommand("cancelauto", "Cancel next auto mission and reschedule"),
         BotCommand("cancel", "Cancel ongoing operation")
     ])
     schedule_next_scan(application.job_queue)  # Start scheduling
@@ -416,7 +416,7 @@ async def perform_scan_in(bot, chat_id, context=None):
                 chat_id=chat_id,
                 photo=photo,
                 caption=(
-                  f"✅ Successful scan confirmed at {datetime.now(TIMEZONE).strftime('%H:%M:%S')} (ICT)\n"
+                  f"✅ Successful mission confirmed at {datetime.now(TIMEZONE).strftime('%H:%M:%S')} (ICT)\n"
                   f"📍 *Location:* `{lat:.6f}, {lon:.6f}`\n"
                   f"📏 *Distance from Office:* {distance}m\n"
                   f"🗺 [View on Map](https://maps.google.com/maps?q={lat},{lon})"
@@ -476,9 +476,9 @@ async def scanin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             success = await perform_scan_in(context.bot, chat_id)
             if success:
-                await context.bot.send_message(chat_id, "✅ Scan-in process completed successfully!")
+                await context.bot.send_message(chat_id, "✅ Mission process completed successfully!")
             else:
-                await context.bot.send_message(chat_id, "❌ Scan-in failed. Check previous messages for details.")
+                await context.bot.send_message(chat_id, "❌ Mission failed. Check previous messages for details.")
         finally:
             scan_tasks.pop(chat_id, None)
 
