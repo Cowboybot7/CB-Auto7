@@ -112,13 +112,13 @@ def create_driver():
     return driver, (lat, lon)
     
 async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
-    """Send reminder about upcoming scan"""
+    """Send reminder about upcoming mission"""
     try:
         chat_id = os.getenv('CHAT_ID')
         next_run = context.job.data  # ONLY THIS LINE NEEDED
         await context.bot.send_message(
             chat_id=chat_id,
-            text=f"⏰ Reminder: Auto scan scheduled at {next_run.strftime('%H:%M')} ICT (in 1 hour)"
+            text=f"⏰ Reminder: Auto mission scheduled at {next_run.strftime('%H:%M')} ICT (in 1 hour)"
         )
         logger.info(f"Sent reminder for {next_run}")
     except Exception as e:
@@ -151,7 +151,7 @@ async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
         schedule_next_scan(context.job_queue)
         
 def schedule_next_scan(job_queue, force_next_morning=False):
-    """Schedule next scan and reminder safely."""
+    """Schedule next mission and reminder safely."""
     # First remove ALL existing jobs to prevent duplicates
     for job in job_queue.get_jobs_by_name("auto_scanin"):
         job.schedule_removal()
@@ -206,7 +206,7 @@ def schedule_next_scan(job_queue, force_next_morning=False):
     reminder_time = next_run - timedelta(hours=1)
     delay_reminder = (reminder_time - now).total_seconds()
 
-    # Schedule next scan
+    # Schedule next mission
     job_queue.run_once(auto_scanin_job, when=delay_seconds, name="auto_scanin")
     logger.info(f"✅ Scheduled next mission at {next_run.strftime('%Y-%m-%d %H:%M:%S')} ICT")
 
@@ -223,7 +223,7 @@ async def cancelauto(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ You are not authorized to use this command")
         return
 
-    # Remove both scan and reminder jobs
+    # Remove both mission and reminder jobs
     jobs = context.job_queue.get_jobs_by_name("auto_scanin") + context.job_queue.get_jobs_by_name("reminder")
     if not jobs:
         await update.message.reply_text("ℹ️ No scheduled auto missions to cancel")
@@ -375,18 +375,18 @@ async def perform_scan_in(bot, chat_id, context=None):
                 time.sleep(0.5)
         
             scan_in_btn.click()
-            await bot.send_message(chat_id, "🔄 Processing scan-in...")
+            await bot.send_message(chat_id, "🔄 Processing mission...")
             
             # Add timeout fallback
             WebDriverWait(driver, 25).until(
                 EC.url_contains("frmclock.aspx")
             )
         except TimeoutException:
-            await bot.send_message(chat_id, "❌ Timeout waiting for Scan In button")
+            await bot.send_message(chat_id, "❌ Timeout waiting for Mission button")
             driver.save_screenshot("timeout_mission.png")
             raise
         except Exception as e:
-            await bot.send_message(chat_id, f"⚠️ Scan In Error: {str(e)}")
+            await bot.send_message(chat_id, f"⚠️ Mission Error: {str(e)}")
             raise
         # Step 5: Capture attendance table screenshot
         await bot.send_message(chat_id, "📸 Capturing attendance record...")
@@ -467,10 +467,10 @@ async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if chat_id in scan_tasks:
-        await update.message.reply_text("⚠️ A scan is already in progress. Use /cancel to stop it.")
+        await update.message.reply_text("⚠️ A mission is already in progress. Use /cancel to stop it.")
         return
 
-    await update.message.reply_text("⏳ Scan task started in background...")
+    await update.message.reply_text("⏳ Mission task started in background...")
     
     async def task_wrapper():
         try:
