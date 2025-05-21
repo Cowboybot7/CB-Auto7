@@ -238,7 +238,7 @@ async def cancelauto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"🚫 Auto missions canceled until {next_run.strftime('%A')} morning\n"
         f"⏰ Next mission: {next_run.strftime('%a %H:%M')} ICT\n"
-        "⚠️ Reminder: Manual mission still available via /scanin",
+        "⚠️ Reminder: Manual mission still available via /letgo",
         parse_mode="Markdown"
     )
 
@@ -283,7 +283,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def post_init(application):
     await application.bot.set_my_commands([
         BotCommand("start", "Show welcome message"),
-        BotCommand("scanin", "Initiate mission"),
+        BotCommand("letgo", "Initiate mission"),
         BotCommand("cancelauto", "Cancel next auto mission and reschedule"),
         BotCommand("cancel", "Cancel ongoing operation")
     ])
@@ -383,7 +383,7 @@ async def perform_scan_in(bot, chat_id, context=None):
             )
         except TimeoutException:
             await bot.send_message(chat_id, "❌ Timeout waiting for Scan In button")
-            driver.save_screenshot("timeout_scanin.png")
+            driver.save_screenshot("timeout_mission.png")
             raise
         except Exception as e:
             await bot.send_message(chat_id, f"⚠️ Scan In Error: {str(e)}")
@@ -454,11 +454,11 @@ async def perform_scan_in(bot, chat_id, context=None):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send welcome message"""
     await update.message.reply_text(
-        "🚀 Attendance Bot Ready!\n"
-        "Use /scanin to trigger the automation process"
+        "🚀 Mission Bot Ready!\n"
+        "Use /letgo to trigger the automation process"
     )
 
-async def scanin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     chat_id = update.effective_chat.id
 
@@ -492,7 +492,7 @@ def main():
     
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("scanin", scanin))
+    application.add_handler(CommandHandler("letgo", letgo))
     application.add_handler(CommandHandler("cancelauto", cancelauto))
     application.add_handler(CommandHandler("cancel", cancel))
     application.post_init = post_init
