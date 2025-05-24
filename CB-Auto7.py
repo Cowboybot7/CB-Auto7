@@ -161,27 +161,28 @@ def schedule_next_scan(job_queue, force_next_morning=False):
     now = TIMEZONE.localize(datetime.now())
 
     def get_next_slot(now):
-        # Keep original time slots exactly as you defined them
         scan_slots = {
-            # Mon-Fri: Morning (7:45-7:59), Evening (18:07-18:37)
             0: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
             1: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
             2: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
             3: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
             4: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
-            # Saturday: Morning (7:45-7:59), Afternoon (12:07-12:17)
             5: [("morning", 7, 45, 59), ("afternoon", 12, 7, 17)],
         }
+
         for day_offset in range(8):
             future_day = now + timedelta(days=day_offset)
             weekday = future_day.weekday()
             if weekday in scan_slots:
                 for scan_type, hour, min_start, min_end in scan_slots[weekday]:
                     minute = random.randint(min_start, min_end)
-                    candidate_time = TIMEZONE.localize(datetime.combine(
-                        future_day.date(),
-                        dt_time(hour, minute)
-                    ))
+                    # FIX: Use timezone-aware datetime replacement
+                    candidate_time = future_day.replace(
+                        hour=hour,
+                        minute=minute,
+                        second=0,
+                        microsecond=0
+                    )
                     if candidate_time > now:
                         return scan_type, candidate_time
         return None, None
