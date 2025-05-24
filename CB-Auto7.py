@@ -153,9 +153,7 @@ async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
 def schedule_next_scan(job_queue, force_next_morning=False):
     """Schedule next mission and reminder safely."""
     # First remove ALL existing jobs to prevent duplicates
-    for job in job_queue.get_jobs_by_name("auto_scanin"):
-        job.schedule_removal()
-    for job in job_queue.get_jobs_by_name("reminder"):
+    for job in job_queue.get_jobs_by_name("auto_scanin") + job_queue.get_jobs_by_name("reminder"):
         job.schedule_removal()
 
     now = TIMEZONE.localize(datetime.now())
@@ -167,22 +165,19 @@ def schedule_next_scan(job_queue, force_next_morning=False):
             2: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
             3: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
             4: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
-            5: [("morning", 7, 45, 59), ("afternoon", 12, 7, 17)],
+            5: [("morning", 7, 45, 59), ("afternoon", 12, 7, 17)],  # Saturday
         }
 
-        for day_offset in range(8):
+        for day_offset in range(8):  # Look up to 1 week ahead
             future_day = now + timedelta(days=day_offset)
             weekday = future_day.weekday()
             if weekday in scan_slots:
                 for scan_type, hour, min_start, min_end in scan_slots[weekday]:
                     minute = random.randint(min_start, min_end)
-                    # FIX: Use timezone-aware datetime replacement
-                    candidate_time = future_day.replace(
-                        hour=hour,
-                        minute=minute,
-                        second=0,
-                        microsecond=0
-                    )
+                    naive_time = datetime.combine(future_day.date(), dt_time(hour, minute))
+                    candidate_time = TIMEZONE.localize(naive_time)
+
+                    # 🔒 Must be strictly in the future
                     if candidate_time > now:
                         return scan_type, candidate_time
         return None, None
@@ -200,18 +195,18 @@ def schedule_next_scan(job_queue, force_next_morning=False):
         scan_type, next_run = get_next_slot(now)
 
     if not next_run or next_run <= now:
-        logger.warning(f"⚠️ Calculated next_run ({next_run}) was in the past. Forcing next morning.")
+        logger.warning(f"⚠️ Calculated next_run ({next_run}) was invalid or in the past. Forcing next weekday morning.")
         return schedule_next_scan(job_queue, force_next_morning=True)
 
     delay_seconds = (next_run - now).total_seconds()
     reminder_time = next_run - timedelta(hours=1)
     delay_reminder = (reminder_time - now).total_seconds()
 
-    # Schedule next mission
+    # ✅ Schedule next mission
     job_queue.run_once(auto_scanin_job, when=delay_seconds, name="auto_scanin")
     logger.info(f"✅ Scheduled next mission at {next_run.strftime('%Y-%m-%d %H:%M:%S')} ICT")
 
-    # Schedule reminder
+    # ✅ Schedule reminder
     if delay_reminder > 0:
         job_queue.run_once(send_reminder, when=delay_reminder, data=next_run, name="reminder")
         logger.info(f"⏰ Scheduled reminder at {reminder_time.strftime('%Y-%m-%d %H:%M:%S')} ICT")
