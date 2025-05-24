@@ -502,9 +502,9 @@ async def handle_telegram_webhook(request):
 
 async def main():
     await application.initialize()
-    await application.start()  # ✅ Start scheduler and bot internals
+    await application.start()  # ✅ Start scheduler, triggers post_init
 
-    # Set up aiohttp routes
+    # aiohttp app for healthz + webhook
     app = web.Application()
     app.router.add_get("/healthz", handle_health_check)
     app.router.add_post("/", handle_telegram_webhook)
@@ -517,7 +517,7 @@ async def main():
     await application.bot.set_webhook(os.getenv("WEBHOOK_URL"))
     print("✅ Webhook set")
 
-    # Keep running
+    # Keeps the app running
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
