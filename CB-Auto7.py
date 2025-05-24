@@ -481,27 +481,40 @@ async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task = create_task(task_wrapper())
     scan_tasks[chat_id] = task
 
-def main():
-    """Start the bot"""
-    # health_thread = threading.Thread(target=run_health_server, daemon=True)
-    # health_thread.start()
-    
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("letgo", letgo))
-    application.add_handler(CommandHandler("cancelauto", cancelauto))
-    application.add_handler(CommandHandler("cancel", cancel))
-    application.post_init = post_init
-    WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-    PORT = int(os.getenv('PORT', 8000))
-    
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=WEBHOOK_URL,
-        # health_check_path='/healthz',
-        allowed_updates=Update.ALL_TYPES,
-    )
-    
+#Telegram App
+application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("letgo", letgo))
+application.add_handler(CommandHandler("cancelauto", cancelauto))
+application.add_handler(CommandHandler("cancel", cancel))
+application.post_init = post_init
+
+async def handle_health_check(request):
+    return web.Response(text="OK")
+
+async def handle_telegram_webhook(request):
+    data = await request.json()
+    update = Update.de_json(data, application.bot)
+    await application.process_update(update)
+    return web.Response(text="OK")
+
+async def main():
+    await application.initialize()
+
+    app = web.Application()
+    app.router.add_get("/healthz", handle_health_check)
+    app.router.add_post("/", handle_telegram_webhook)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
+    await site.start()
+
+    await application.bot.set_webhook(os.getenv("WEBHOOK_URL"))
+    print("✅ Webhook set")
+
+    # ✅ Keep running indefinitely (instead of updater.wait_closed())
+    await asyncio.Event().wait()
+
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
