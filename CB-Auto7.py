@@ -22,6 +22,7 @@ from math import radians, sin, cos, sqrt, atan2
 from selenium.common.exceptions import TimeoutException
 from threading import Lock
 from asyncio import create_task
+import asyncio
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     """
@@ -495,7 +496,7 @@ async def handle_telegram_webhook(request):
     await application.process_update(update)
     return web.Response(text="OK")
 
-def main():
+async def main():
     """Start the bot"""
     app = web.Application()
     app.router.add_get("/healthz", handle_health_check)
@@ -518,13 +519,5 @@ def main():
     await post_init(application)  # ✅ Trigger post_init manually
     await asyncio.Event().wait()
 
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=WEBHOOK_URL,
-        # health_check_path='/healthz',
-        allowed_updates=Update.ALL_TYPES,
-    )
-    
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
