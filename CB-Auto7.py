@@ -488,8 +488,16 @@ async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task = create_task(task_wrapper())
     scan_tasks[chat_id] = task
 
+#Telegram App
+application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("letgo", letgo))
+application.add_handler(CommandHandler("cancelauto", cancelauto))
+application.add_handler(CommandHandler("cancel", cancel))
+application.post_init = post_init
+
 async def handle_health_check(request):
-    return web.Response(text="✅ Health check OK")
+    return web.Response(text="OK")
 
 async def handle_telegram_webhook(request):
     data = await request.json()
@@ -498,27 +506,21 @@ async def handle_telegram_webhook(request):
     return web.Response(text="OK")
 
 async def main():
-    """Start the bot"""
     await application.initialize()
+
     app = web.Application()
     app.router.add_get("/healthz", handle_health_check)
     app.router.add_post("/", handle_telegram_webhook)
+
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
     await site.start()
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("letgo", letgo))
-    application.add_handler(CommandHandler("cancelauto", cancelauto))
-    application.add_handler(CommandHandler("cancel", cancel))
-    application.post_init = post_init
-    WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-    PORT = int(os.getenv('PORT', 8000))
-    
+
     await application.bot.set_webhook(os.getenv("WEBHOOK_URL"))
-    logger.info("✅ Webhook set successfully")
+    print("✅ Webhook set")
     await post_init(application)
+    # ✅ Keep running indefinitely (instead of updater.wait_closed())
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
