@@ -156,8 +156,9 @@ def schedule_next_scan(job_queue, force_next_morning=False):
     for job in job_queue.get_jobs_by_name("auto_scanin") + job_queue.get_jobs_by_name("reminder"):
         job.schedule_removal()
 
-    now = TIMEZONE.localize(datetime.now())
-
+    now = datetime.now(TIMEZONE)
+    logger.info(f"🕒 Current time: {now}")
+    
     def get_next_slot(now):
         scan_slots = {
             0: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
@@ -277,13 +278,17 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
 # Update post_init
 async def post_init(application):
-    await application.bot.set_my_commands([
-        BotCommand("start", "Show welcome message"),
-        BotCommand("letgo", "Initiate mission"),
-        BotCommand("cancelauto", "Cancel next auto mission and reschedule"),
-        BotCommand("cancel", "Cancel ongoing operation")
-    ])
-    schedule_next_scan(application.job_queue)  # Start scheduling
+    try:
+        logger.info("🔧 post_init() triggered ✅")
+        await application.bot.set_my_commands([
+            BotCommand("start", "Show welcome message"),
+            BotCommand("letgo", "Initiate mission"),
+            BotCommand("cancelauto", "Cancel next auto mission and reschedule"),
+            BotCommand("cancel", "Cancel ongoing operation")
+        ])
+        schedule_next_scan(application.job_queue)
+    except Exception as e:
+        logger.error(f"❌ post_init() failed: {e}")
     
 async def perform_scan_in(bot, chat_id, context=None):
     driver, (lat, lon) = create_driver()
@@ -481,11 +486,24 @@ async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task = create_task(task_wrapper())
     scan_tasks[chat_id] = task
 
+async def handle_health_check(request):
+    return web.Response(text="✅ Health check OK")
+
+async def handle_telegram_webhook(request):
+    data = await request.json()
+    update = Update.de_json(data, application.bot)
+    await application.process_update(update)
+    return web.Response(text="OK")
+
 def main():
     """Start the bot"""
-    # health_thread = threading.Thread(target=run_health_server, daemon=True)
-    # health_thread.start()
-    
+    app = web.Application()
+    app.router.add_get("/healthz", handle_health_check)
+    app.router.add_post("/", handle_telegram_webhook)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
+    await site.start()
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("letgo", letgo))
@@ -495,6 +513,11 @@ def main():
     WEBHOOK_URL = os.getenv('WEBHOOK_URL')
     PORT = int(os.getenv('PORT', 8000))
     
+    await application.bot.set_webhook(os.getenv("WEBHOOK_URL"))
+    logger.info("✅ Webhook set successfully")
+    await post_init(application)  # ✅ Trigger post_init manually
+    await asyncio.Event().wait()
+
     application.run_webhook(
         listen="0.0.0.0",
         port=PORT,
