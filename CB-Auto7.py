@@ -296,7 +296,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     task = scan_tasks.get(chat_id)
-    with driver_lock:
+    async with driver_lock:
         driver = active_drivers.get(chat_id)
 
     if not task and not driver:
@@ -343,14 +343,14 @@ async def perform_scan_in(bot, chat_id, context=None):
     timestamp = datetime.now(TIMEZONE).strftime("%Y%m%d-%H%M%S")
     driver, (lat, lon) = create_driver()
     screenshot_file = None
-    with driver_lock:
+    async with driver_lock:
         active_drivers[chat_id] = driver
     try:
         start_time = datetime.now(TIMEZONE).strftime("%H:%M:%S")
         await bot.send_message(chat_id, f"🕒 Automation started at {start_time} (ICT)")
         
         # Step 1: Login
-        with driver_lock:
+        async with driver_lock:
             if chat_id not in active_drivers:
                 await bot.send_message(chat_id, "⚠️ Operation cancelled by user")
                 return False
@@ -375,7 +375,7 @@ async def perform_scan_in(bot, chat_id, context=None):
         await bot.send_message(chat_id, "✅ Login successful")
 
         # Step 2: Navigate to Attendance
-        with driver_lock:
+        async with driver_lock:
             if chat_id not in active_drivers:
                 await bot.send_message(chat_id, "⚠️ Operation cancelled by user")
                 return False
@@ -390,7 +390,7 @@ async def perform_scan_in(bot, chat_id, context=None):
         await bot.send_message(chat_id, "✅ Clicked 'More info'")
 
         # Step 3: Clock In
-        with driver_lock:
+        async with driver_lock:
             if chat_id not in active_drivers:
                 await bot.send_message(chat_id, "⚠️ Operation cancelled by user")
                 return False
@@ -410,7 +410,7 @@ async def perform_scan_in(bot, chat_id, context=None):
             
         # Step 4: Enable Scan In
         try:
-            with driver_lock:  # ADD THIS CHECK
+            async with driver_lock:  # ADD THIS CHECK
                 if chat_id not in active_drivers:
                     await bot.send_message(chat_id, "⚠️ Operation cancelled by user")
                     return False
@@ -492,7 +492,7 @@ async def perform_scan_in(bot, chat_id, context=None):
         return False
     finally:
         # Cleanup active_drivers
-        with driver_lock:
+        async with driver_lock:
             if chat_id in active_drivers:
                 del active_drivers[chat_id]
         
