@@ -232,11 +232,11 @@ async def next_mission(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ No auto mission is currently scheduled.")
         return
 
-    next_run = auto_jobs[0].next_callback_time.astimezone(TIMEZONE)
+    next_run = auto_jobs[0].callback.__self__.when.astimezone(TIMEZONE)
     reply = f"📅 Next auto mission:\n🕒 {next_run.strftime('%A at %H:%M')} ICT"
 
     if reminder_jobs:
-        reminder_time = reminder_jobs[0].next_callback_time.astimezone(TIMEZONE)
+        reminder_time = reminder_jobs[0].callback.__self__.when.astimezone(TIMEZONE)
         reply += f"\n🔔 Reminder scheduled for {reminder_time.strftime('%H:%M')} (1 hour before)"
 
     await update.message.reply_text(reply)
