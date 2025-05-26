@@ -187,6 +187,7 @@ def schedule_next_scan(job_queue, force_next_morning=False):
         return None, None
 
     if force_next_morning:
+        next_run = None
         for i in range(1, 8):  # Check next 7 days
             future = now + timedelta(days=i)
             if future.weekday() in [0, 1, 2, 3, 4, 5]:  # Mon-Sat only
@@ -339,6 +340,7 @@ async def post_init(application):
         logger.error(f"❌ post_init() failed: {e}")
     
 async def perform_scan_in(bot, chat_id, context=None):
+    timestamp = datetime.now(TIMEZONE).strftime("%Y%m%d-%H%M%S")
     driver, (lat, lon) = create_driver()
     screenshot_file = None
     with driver_lock:
@@ -489,23 +491,40 @@ async def perform_scan_in(bot, chat_id, context=None):
             await bot.send_photo(chat_id=chat_id, photo=photo, caption="Error screenshot")
         return False
     finally:
-        # Cleanup code
+        # Cleanup active_drivers
         with driver_lock:
             if chat_id in active_drivers:
                 del active_drivers[chat_id]
-        if screenshot_file and os.path.exists(screenshot_file):
-            try:
-                os.remove(screenshot_file)
-            except Exception as e:
-                logger.error(f"Error cleaning screenshot: {str(e)}")
-        driver.quit()
+        
+        # File cleanup
+        for f in [screenshot_file, f"error_{timestamp}.png", f"page_source_{timestamp}.html"]:
+            if f and os.path.exists(f):
+                try:
+                    os.remove(f)
+                except Exception as e:
+                    logger.error(f"Cleanup error: {str(e)}")
+        
+        # Safely quit driver
+        if driver:
+            driver.quit()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send welcome message"""
-    await update.message.reply_text(
-        "🚀 Mission Bot Ready!\n"
-        "Use /letgo to trigger the automation process"
-    )
+    try:
+        if not update.message:
+            logger.error("⚠️ /start triggered without a message object!")
+            return
+        await update.message.reply_text(
+            "🚀 *Mission Bot Ready!*\n\n"
+            "Use /letgo to trigger automation\n"
+            "Commands:\n"
+            "- /cancelauto: Cancel scheduled missions\n"
+            "- /next: Show next mission time\n"
+            "- /cancel: Stop ongoing operations",
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error(f"❌ /start failed: {str(e)}")
 
 async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
