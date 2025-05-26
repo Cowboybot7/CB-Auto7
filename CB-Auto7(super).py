@@ -586,7 +586,9 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = "📋 Scheduled jobs:\n"
 
     for job in jobs:
-        job_time = job.data.astimezone(TIMEZONE).strftime('%Y-%m-%d %H:%M') if job.data else "⏳ No time info"
+        job_time = (
+    job.data.astimezone(TIMEZONE).strftime('%a %Y-%m-%d %I:%M %p') if job.data else "⏳ No time info"
+)
         message += f"• `{job.name}` → {job_time}\n"
 
     await update.message.reply_text(message, parse_mode="Markdown")
