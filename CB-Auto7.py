@@ -217,7 +217,50 @@ def schedule_next_scan(job_queue, force_next_morning=False):
         logger.info(f"⏰ Scheduled reminder at {reminder_time.strftime('%Y-%m-%d %H:%M:%S')} ICT")
 
     return next_run
-    
+
+async def next_mission(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    if user_id not in AUTHORIZED_USERS:
+        await update.message.reply_text("❌ You are not authorized to use this command")
+        return
+
+    now = datetime.now(TIMEZONE)
+
+    def get_next_slot(now):
+        scan_slots = {
+            0: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],  # Monday
+            1: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
+            2: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
+            3: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
+            4: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
+            5: [("morning", 7, 45, 59), ("afternoon", 12, 7, 17)],  # Saturday
+        }
+
+        for day_offset in range(8):
+            future_day = now + timedelta(days=day_offset)
+            weekday = future_day.weekday()
+            if weekday in scan_slots:
+                for scan_type, hour, min_start, min_end in scan_slots[weekday]:
+                    minute = random.randint(min_start, min_end)
+                    naive_time = datetime.combine(future_day.date(), dt_time(hour, minute))
+                    candidate_time = TIMEZONE.localize(naive_time)
+                    if candidate_time > now:
+                        return scan_type, candidate_time
+        return None, None
+
+    scan_type, next_run = get_next_slot(now)
+    if not next_run:
+        await update.message.reply_text("⚠️ No upcoming auto mission found.")
+        return
+
+    reminder_time = next_run - timedelta(hours=1)
+
+    await update.message.reply_text(
+        f"📅 Next auto mission:\n"
+        f"🕒 {next_run.strftime('%A at %H:%M')} ICT\n"
+        f"🔔 Reminder scheduled for {reminder_time.strftime('%H:%M')} (1 hour before)"
+    )
+
 async def cancelauto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     if user_id not in AUTHORIZED_USERS:
@@ -288,7 +331,8 @@ async def post_init(application):
             BotCommand("start", "Show welcome message"),
             BotCommand("letgo", "Initiate mission"),
             BotCommand("cancelauto", "Cancel next auto mission and reschedule"),
-            BotCommand("cancel", "Cancel ongoing operation")
+            BotCommand("cancel", "Cancel ongoing operation"),
+            BotCommand("next", "Show next auto mission time")
         ])
         schedule_next_scan(application.job_queue)
     except Exception as e:
@@ -496,6 +540,7 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("letgo", letgo))
 application.add_handler(CommandHandler("cancelauto", cancelauto))
 application.add_handler(CommandHandler("cancel", cancel))
+application.add_handler(CommandHandler("next", next_mission))
 application.post_init = post_init
 
 async def handle_health_check(request):
