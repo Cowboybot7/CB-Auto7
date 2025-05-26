@@ -130,7 +130,6 @@ async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
 async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
     global is_auto_scan_running
     
-    # Use async lock to guard the critical section
     async with scan_lock:
         if is_auto_scan_running:
             logger.warning("⚠️ Skipping auto mission: already running.")
@@ -146,10 +145,12 @@ async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Automated mission failed: {str(e)}")
         await context.bot.send_message(chat_id, f"❌ Automated mission failed: {str(e)}")
     finally:
+        # Schedule next job FIRST while lock is still held
+        schedule_next_scan(context.job_queue)
+        
+        # Then release the lock
         async with scan_lock:
             is_auto_scan_running = False
-        # Schedule next job regardless of what just happened
-        schedule_next_scan(context.job_queue)
         
 def schedule_next_scan(job_queue, force_next_morning=False):
     """Schedule next mission and reminder safely."""
