@@ -214,7 +214,7 @@ def schedule_next_scan(job_queue, force_next_morning=False):
     if existing_reminder:
         logger.info("📌 Reminder already scheduled. Skipping reschedule.")
     elif delay_reminder > 0:
-        job_queue.run_once(send_reminder, when=delay_reminder, data=next_run, name="reminder")
+        job_queue.run_once(send_reminder, when=delay_reminder, data=reminder_time, name="reminder")
         logger.info(f"⏰ Scheduled reminder at {reminder_time.strftime('%Y-%m-%d %H:%M:%S')} ICT")
 
     return next_run
