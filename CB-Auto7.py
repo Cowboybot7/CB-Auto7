@@ -225,42 +225,21 @@ async def next_mission(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ You are not authorized to use this command")
         return
 
-    now = datetime.now(TIMEZONE)
+    auto_jobs = context.job_queue.get_jobs_by_name("auto_scanin")
+    reminder_jobs = context.job_queue.get_jobs_by_name("reminder")
 
-    def get_next_slot(now):
-        scan_slots = {
-            0: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],  # Monday
-            1: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
-            2: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
-            3: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
-            4: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
-            5: [("morning", 7, 45, 59), ("afternoon", 12, 7, 17)],  # Saturday
-        }
-
-        for day_offset in range(8):
-            future_day = now + timedelta(days=day_offset)
-            weekday = future_day.weekday()
-            if weekday in scan_slots:
-                for scan_type, hour, min_start, min_end in scan_slots[weekday]:
-                    minute = random.randint(min_start, min_end)
-                    naive_time = datetime.combine(future_day.date(), dt_time(hour, minute))
-                    candidate_time = TIMEZONE.localize(naive_time)
-                    if candidate_time > now:
-                        return scan_type, candidate_time
-        return None, None
-
-    scan_type, next_run = get_next_slot(now)
-    if not next_run:
-        await update.message.reply_text("⚠️ No upcoming auto mission found.")
+    if not auto_jobs:
+        await update.message.reply_text("⚠️ No auto mission is currently scheduled.")
         return
 
-    reminder_time = next_run - timedelta(hours=1)
+    next_run = auto_jobs[0].next_t.astimezone(TIMEZONE)
+    reply = f"📅 Next auto mission:\n🕒 {next_run.strftime('%A at %H:%M')} ICT"
 
-    await update.message.reply_text(
-        f"📅 Next auto mission:\n"
-        f"🕒 {next_run.strftime('%A at %H:%M')} ICT\n"
-        f"🔔 Reminder scheduled for {reminder_time.strftime('%H:%M')} (1 hour before)"
-    )
+    if reminder_jobs:
+        reminder_time = reminder_jobs[0].next_t.astimezone(TIMEZONE)
+        reply += f"\n🔔 Reminder scheduled for {reminder_time.strftime('%H:%M')} (1 hour before)"
+
+    await update.message.reply_text(reply)
 
 async def cancelauto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
