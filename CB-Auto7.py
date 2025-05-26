@@ -570,17 +570,24 @@ async def handle_health_check(request):
     return web.Response(text="OK")
 
 async def handle_telegram_webhook(request):
-    data = await request.json()
-    update = Update.de_json(data, application.bot)
-    await application.process_update(update)
-    return web.Response(text="OK")
+    try:
+        data = await request.json()
+        update = Update.de_json(data, application.bot)
+        await application.process_update(update)
+        return web.Response(text="OK")
+    except Exception as e:
+        import traceback
+        logger.error(f"Webhook handler failed: {e}")
+        logger.error(traceback.format_exc())
+        return web.Response(status=500, text="Webhook failed")
 
 async def main():
     await application.initialize()
 
     app = web.Application()
     app.router.add_get("/healthz", handle_health_check)
-    app.router.add_post("/", handle_telegram_webhook)
+    app.router.add_post("/webhook", handle_telegram_webhook)
+    app.router.add_get("/", lambda request: web.Response(text="✅ Bot is running"))
 
     runner = web.AppRunner(app)
     await runner.setup()
