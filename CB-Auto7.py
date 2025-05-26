@@ -155,8 +155,20 @@ async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
 def schedule_next_scan(job_queue, force_next_morning=False):
     """Schedule next mission and reminder safely."""
     # First remove ALL existing jobs to prevent duplicates
-    for job in job_queue.get_jobs_by_name("auto_scanin") + job_queue.get_jobs_by_name("reminder"):
-        job.schedule_removal()
+    existing_auto = job_queue.get_jobs_by_name("auto_scanin")
+    existing_reminder = job_queue.get_jobs_by_name("reminder")
+    
+    if existing_auto:
+        logger.info("📌 Auto mission already scheduled. Skipping reschedule.")
+    else:
+        job_queue.run_once(auto_scanin_job, when=delay_seconds, name="auto_scanin")
+        logger.info(f"✅ Scheduled next mission at {next_run.strftime('%Y-%m-%d %H:%M:%S')} ICT")
+    
+    if existing_reminder:
+        logger.info("📌 Reminder already scheduled. Skipping reschedule.")
+    elif delay_reminder > 0:
+        job_queue.run_once(send_reminder, when=delay_reminder, data=next_run, name="reminder")
+        logger.info(f"⏰ Scheduled reminder at {reminder_time.strftime('%Y-%m-%d %H:%M:%S')} ICT")
 
     now = datetime.now(TIMEZONE)
     logger.info(f"🕒 Current time: {now}")
