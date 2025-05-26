@@ -328,13 +328,29 @@ async def post_init(application):
             BotCommand("letgo", "Initiate mission"),
             BotCommand("cancelauto", "Cancel next auto mission and reschedule"),
             BotCommand("cancel", "Cancel ongoing operation"),
-            BotCommand("next", "Show next auto mission time")
+            BotCommand("next", "Show next auto mission time"),
+            BotCommand("status", "Show status")
         ])
+
+        # Schedule the next scan
         schedule_next_scan(application.job_queue)
+
+        # 🛡 Watchdog: every hour
         application.job_queue.run_repeating(
             watchdog_check, interval=3600, first=60, name="watchdog"
         )
         logger.info("🔍 Watchdog scheduled to run every hour.")
+
+        # 🗓 Daily Summary at 21:00 ICT
+        summary_time = datetime.now(TIMEZONE).replace(hour=21, minute=0, second=0, microsecond=0)
+        delay = (summary_time - datetime.now(TIMEZONE)).total_seconds()
+        if delay < 0:
+            delay += 86400  # schedule for next day
+        application.job_queue.run_repeating(
+            daily_summary, interval=86400, first=delay, name="daily_summary"
+        )
+        logger.info("🗓 Daily summary scheduled for 21:00 ICT.")
+
     except Exception as e:
         logger.error(f"❌ post_init() failed: {e}")
 
