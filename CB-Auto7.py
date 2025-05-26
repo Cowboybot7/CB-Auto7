@@ -163,12 +163,13 @@ def schedule_next_scan(job_queue, force_next_morning=False):
     
     def get_next_slot(now):
         scan_slots = {
-            0: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
-            1: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
-            2: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
-            3: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
-            4: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],
+            0: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],  # Monday
+            1: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],  # Tuesday
+            2: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],  # Wednesday
+            3: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],  # Thursday
+            4: [("morning", 7, 45, 59), ("evening", 18, 7, 37)],  # Friday
             5: [("morning", 7, 45, 59), ("afternoon", 12, 7, 17)],  # Saturday
+            # Sunday (6) intentionally omitted
         }
 
         for day_offset in range(8):  # Look up to 1 week ahead
@@ -186,9 +187,9 @@ def schedule_next_scan(job_queue, force_next_morning=False):
         return None, None
 
     if force_next_morning:
-        for i in range(1, 8):
+        for i in range(1, 8):  # Check next 7 days
             future = now + timedelta(days=i)
-            if future.weekday() in [0, 1, 2, 3, 4, 5]:
+            if future.weekday() in [0, 1, 2, 3, 4, 5]:  # Mon-Sat only
                 hour = 7
                 minute = random.randint(45, 59)
                 next_run = TIMEZONE.localize(datetime.combine(future.date(), dt_time(hour, minute)))
@@ -196,7 +197,8 @@ def schedule_next_scan(job_queue, force_next_morning=False):
                 break
     else:
         scan_type, next_run = get_next_slot(now)
-
+        logger.info(f"✅ Scheduled next mission at {next_run.strftime('%A %H:%M')} (Type: {scan_type})")
+        
     if not next_run or next_run <= now:
         logger.warning(f"⚠️ Calculated next_run ({next_run}) was invalid or in the past. Forcing next weekday morning.")
         return schedule_next_scan(job_queue, force_next_morning=True)
