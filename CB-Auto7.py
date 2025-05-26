@@ -220,26 +220,34 @@ def schedule_next_scan(job_queue, force_next_morning=False):
     return next_run
 
 async def next_mission(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    if user_id not in AUTHORIZED_USERS:
-        await update.message.reply_text("❌ You are not authorized to use this command")
-        return
+    try:
+        user_id = str(update.effective_user.id)
+        if user_id not in AUTHORIZED_USERS:
+            await update.message.reply_text("❌ You are not authorized to use this command")
+            return
 
-    auto_jobs = context.job_queue.get_jobs_by_name("auto_scanin")
-    reminder_jobs = context.job_queue.get_jobs_by_name("reminder")
+        auto_jobs = context.job_queue.get_jobs_by_name("auto_scanin")
+        reminder_jobs = context.job_queue.get_jobs_by_name("reminder")
 
-    if not auto_jobs:
-        await update.message.reply_text("⚠️ No auto mission is currently scheduled.")
-        return
+        logger.info(f"🧪 Auto jobs: {auto_jobs}")
+        logger.info(f"🧪 Reminder jobs: {reminder_jobs}")
 
-    next_run = auto_jobs[0].callback.__self__.when.astimezone(TIMEZONE)
-    reply = f"📅 Next auto mission:\n🕒 {next_run.strftime('%A at %H:%M')} ICT"
+        if not auto_jobs:
+            await update.message.reply_text("⚠️ No auto mission is currently scheduled.")
+            return
 
-    if reminder_jobs:
-        reminder_time = reminder_jobs[0].callback.__self__.when.astimezone(TIMEZONE)
-        reply += f"\n🔔 Reminder scheduled for {reminder_time.strftime('%H:%M')} (1 hour before)"
+        next_run = auto_jobs[0].callback.__self__.when.astimezone(TIMEZONE)
+        reply = f"📅 Next auto mission:\n🕒 {next_run.strftime('%A at %H:%M')} ICT"
 
-    await update.message.reply_text(reply)
+        if reminder_jobs:
+            reminder_time = reminder_jobs[0].callback.__self__.when.astimezone(TIMEZONE)
+            reply += f"\n🔔 Reminder scheduled for {reminder_time.strftime('%H:%M')} (1 hour before)"
+
+        await update.message.reply_text(reply)
+
+    except Exception as e:
+        logger.error(f"🔥 /next crashed: {e}")
+        await update.message.reply_text("❌ Failed to get next mission. Please check logs.")
 
 async def cancelauto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
