@@ -64,7 +64,7 @@ scan_lock = Lock()  # Async-safe lock
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.DEBUG
 )
 logger = logging.getLogger(__name__)
 
@@ -541,16 +541,20 @@ async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳ Mission task started in background...")
     
     async def task_wrapper():
-        try:
-            success = await perform_scan_in(context.bot, chat_id)
-            if success:
-                await context.bot.send_message(chat_id, "✅ Mission process completed successfully!")
-            else:
-                await context.bot.send_message(chat_id, "❌ Mission failed. Check previous messages for details.")
-        finally:
-            scan_tasks.pop(chat_id, None)
+    try:
+        success = await perform_scan_in(context.bot, chat_id)
+        if success:
+            await context.bot.send_message(chat_id, "✅ Mission process completed successfully!")
+        else:
+            await context.bot.send_message(chat_id, "❌ Mission failed. Check previous messages for details.")
+    except Exception as e:
+        logger.error(f"🚨 Error in mission task: {str(e)}")
+        await context.bot.send_message(chat_id, f"❌ Mission error: {str(e)}")
+    finally:
+        scan_tasks.pop(chat_id, None)
 
     task = create_task(task_wrapper())
+    logger.info("🎯 Mission task scheduled for execution")
     scan_tasks[chat_id] = task
 
 #Telegram App
@@ -590,4 +594,10 @@ async def main():
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import sys
+    try:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        print("👋 Shutting down...")
+        sys.exit(0)
