@@ -6,6 +6,8 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
+    chromium=119.0.6045.105-1~deb12u1 \
+    chromium-driver=119.0.6045.105-1~deb12u1 \
     chromium \
     chromium-driver \
     xvfb \
