@@ -319,6 +319,20 @@ async def watchdog_check(context: ContextTypes.DEFAULT_TYPE):
     else:
         logger.info("✅ Watchdog: auto_scanin job is scheduled.")
 
+async def daily_summary(context: ContextTypes.DEFAULT_TYPE):
+    auto_jobs = context.job_queue.get_jobs_by_name("auto_scanin")
+    if auto_jobs and auto_jobs[0].data:
+        next_run = auto_jobs[0].data.astimezone(TIMEZONE)
+        await context.bot.send_message(
+            chat_id=CHAT_ID,
+            text=f"📅 Daily Summary:\nNext auto mission at {next_run.strftime('%A %H:%M')} ICT"
+        )
+    else:
+        await context.bot.send_message(
+            chat_id=CHAT_ID,
+            text="📭 No auto mission currently scheduled."
+        )
+
 # Update post_init
 async def post_init(application):
     try:
