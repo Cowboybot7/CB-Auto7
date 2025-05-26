@@ -584,11 +584,12 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     message = "📋 Scheduled jobs:\n"
-    for job in jobs:
-        job_time = job.data.astimezone(TIMEZONE) if job.data else "⏳ Unknown"
-        message += f"• {job.name} at {job_time}\n"
 
-    await update.message.reply_text(message)
+    for job in jobs:
+        job_time = job.data.astimezone(TIMEZONE).strftime('%Y-%m-%d %H:%M') if job.data else "⏳ No time info"
+        message += f"• `{job.name}` → {job_time}\n"
+
+    await update.message.reply_text(message, parse_mode="Markdown")
 
 #Telegram App
 application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
