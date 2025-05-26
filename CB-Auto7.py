@@ -208,7 +208,7 @@ def schedule_next_scan(job_queue, force_next_morning=False):
     if existing_auto:
         logger.info("📌 Auto mission already scheduled. Skipping reschedule.")
     else:
-        job_queue.run_once(auto_scanin_job, when=delay_seconds, name="auto_scanin")
+        job_queue.run_once(auto_scanin_job, when=delay_seconds, name="auto_scanin", data=next_run)
         logger.info(f"✅ Scheduled next mission at {next_run.strftime('%Y-%m-%d %H:%M:%S')} ICT")
     
     if existing_reminder:
