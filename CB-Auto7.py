@@ -541,17 +541,17 @@ async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳ Mission task started in background...")
     
     async def task_wrapper():
-    try:
-        success = await perform_scan_in(context.bot, chat_id)
-        if success:
-            await context.bot.send_message(chat_id, "✅ Mission process completed successfully!")
-        else:
-            await context.bot.send_message(chat_id, "❌ Mission failed. Check previous messages for details.")
-    except Exception as e:
-        logger.error(f"🚨 Error in mission task: {str(e)}")
-        await context.bot.send_message(chat_id, f"❌ Mission error: {str(e)}")
-    finally:
-        scan_tasks.pop(chat_id, None)
+        try:
+            success = await perform_scan_in(context.bot, chat_id)
+            if success:
+                await context.bot.send_message(chat_id, "✅ Mission process completed successfully!")
+            else:
+                await context.bot.send_message(chat_id, "❌ Mission failed. Check previous messages for details.")
+        except Exception as e:
+            logger.error(f"🚨 Error in mission task: {str(e)}")
+            await context.bot.send_message(chat_id, f"❌ Mission error: {str(e)}")
+        finally:
+            scan_tasks.pop(chat_id, None)
 
     task = create_task(task_wrapper())
     logger.info("🎯 Mission task scheduled for execution")
