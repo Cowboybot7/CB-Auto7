@@ -24,6 +24,7 @@ from threading import Lock
 from asyncio import create_task
 import asyncio
 from aiohttp import web
+from asyncio import Lock
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     """
@@ -59,7 +60,7 @@ active_drivers = {}
 driver_lock = Lock()
 scan_tasks = {}
 is_auto_scan_running = False
-
+scan_lock = Lock()  # Async-safe lock
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -128,10 +129,14 @@ async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
         
 async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
     global is_auto_scan_running
-    if is_auto_scan_running:
-        logger.warning("⚠️ Skipping auto mission: already running.")
-        return
-    is_auto_scan_running = True
+    
+    # Use async lock to guard the critical section
+    async with scan_lock:
+        if is_auto_scan_running:
+            logger.warning("⚠️ Skipping auto mission: already running.")
+            return
+        is_auto_scan_running = True
+
     try:
         chat_id = os.getenv('CHAT_ID')
         logger.info("🔄 Starting automated mission...")
@@ -141,14 +146,8 @@ async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Automated mission failed: {str(e)}")
         await context.bot.send_message(chat_id, f"❌ Automated mission failed: {str(e)}")
     finally:
-        is_auto_scan_running = False
-        logger.info("✅ Mission automatically job completed. Cleaning up and scheduling next.")
-        # Always remove old scheduled jobs (including self)
-        for job in context.job_queue.get_jobs_by_name("auto_scanin"):
-            job.schedule_removal()
-        for job in context.job_queue.get_jobs_by_name("reminder"):
-            job.schedule_removal()
-    
+        async with scan_lock:
+            is_auto_scan_running = False
         # Schedule next job regardless of what just happened
         schedule_next_scan(context.job_queue)
         
