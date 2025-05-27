@@ -624,7 +624,7 @@ async def main():
     await application.initialize()
     await post_init(application)
     await application.start()  # Instead of run_polling()
-
+    await application.updater.start_polling()
     # Start your own dummy aiohttp server for health checks
     app = web.Application()
     app.router.add_get("/healthz", lambda r: web.Response(text="OK"))
