@@ -114,18 +114,25 @@ def create_driver():
     })
     return driver, (lat, lon)
 
+async def test_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.job = type('FakeJob', (), {'data': datetime.now(TIMEZONE) + timedelta(hours=1)})
+    await send_reminder(context)
+
+async def test_scanin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await auto_scanin_job(context)
+
 async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
-    """Send reminder about upcoming mission"""
     try:
-        chat_id = os.getenv('CHAT_ID')
-        next_run = context.job.data  # ONLY THIS LINE NEEDED
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=f"⏰ Reminder: Auto mission scheduled at {next_run.strftime('%H:%M')} ICT (in 1 hour)"
-        )
-        logger.info(f"Sent reminder for {next_run}")
+        next_run = context.job.data
+        message = f"🔔 Reminder: Auto scan-in scheduled at {next_run.strftime('%H:%M')} ICT"
+        await context.bot.send_message(chat_id=CHAT_ID, text=message)
+        logger.info(f"✅ Reminder sent: {message}")
     except Exception as e:
-        logger.error(f"Reminder error: {str(e)}")
+        logger.error(f"❌ Reminder job failed: {e}")
+        await context.bot.send_message(
+            chat_id=CHAT_ID,
+            text="❌ Reminder job failed to execute."
+        )
 
 async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
     global is_auto_scan_running
@@ -343,7 +350,9 @@ async def post_init(application):
             BotCommand("cancelauto", "Cancel next auto mission and reschedule"),
             BotCommand("cancel", "Cancel ongoing operation"),
             BotCommand("next", "Show next auto mission time"),
-            BotCommand("status", "Show status")
+            BotCommand("status", "Show status"),
+            BotCommand("testreminder", "Test Remeinder"),
+            BotCommand("testscanin", "Test Scan-in")
         ])
 
         # Schedule the next scan
@@ -615,6 +624,8 @@ application.add_handler(CommandHandler("cancelauto", cancelauto))
 application.add_handler(CommandHandler("cancel", cancel))
 application.add_handler(CommandHandler("next", next_mission))
 application.add_handler(CommandHandler("status", status))
+application.add_handler(CommandHandler("testreminder", test_reminder))
+application.add_handler(CommandHandler("testscanin", test_scanin))
 application.post_init = post_init
 
 async def handle_health_check(request):
