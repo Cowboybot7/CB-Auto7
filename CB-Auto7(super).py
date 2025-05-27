@@ -613,7 +613,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def main():
     application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
 
-    # Add command handlers
+    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("letgo", letgo))
     application.add_handler(CommandHandler("cancelauto", cancelauto))
@@ -621,11 +621,11 @@ async def main():
     application.add_handler(CommandHandler("next", next_mission))
     application.add_handler(CommandHandler("status", status))
 
-    # Initialize app and schedule jobs
     await application.initialize()
-    await post_init(application)  # schedules auto scanin, reminder, watchdog, daily summary
+    await post_init(application)
+    await application.start()  # Instead of run_polling()
 
-    # Health check server to keep Render alive
+    # Start your own dummy aiohttp server for health checks
     app = web.Application()
     app.router.add_get("/healthz", lambda r: web.Response(text="OK"))
     app.router.add_get("/", lambda r: web.Response(text="✅ Bot is alive"))
@@ -635,21 +635,21 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
     await site.start()
 
-    # Start polling (this keeps the bot AND job queue alive!)
-    await application.run_polling()
+    logger.info("✅ Bot started and HTTP server is up.")
+
+    # Wait forever — keeps everything running
+    await asyncio.Event().wait()
 
 # Run the bot
 if __name__ == "__main__":
-    import sys
     import asyncio
 
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            # Already inside an event loop (Render, Jupyter, etc.)
+            # Render environment: schedule as task
             loop.create_task(main())
         else:
             loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("👋 Shutting down...")
-        sys.exit(0)
