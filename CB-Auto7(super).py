@@ -347,8 +347,6 @@ async def post_init(application):
             BotCommand("cancel", "Cancel ongoing operation"),
             BotCommand("next", "Show next auto mission time"),
             BotCommand("status", "Show status"),
-            BotCommand("testreminder", "Test Remeinder"),
-            BotCommand("testscanin", "Test Scan-in")
         ])
 
         # Schedule the next scan
