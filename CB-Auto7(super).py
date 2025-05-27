@@ -608,6 +608,11 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(message, parse_mode="Markdown")
 
+# Put these above main()
+
+async def handle_health_check(request):
+    return web.Response(text="OK")
+
 async def handle_telegram_webhook(request):
     data = await request.json()
     update = Update.de_json(data, bot_context["application"].bot)
