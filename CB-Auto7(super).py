@@ -114,13 +114,6 @@ def create_driver():
     })
     return driver, (lat, lon)
 
-async def test_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.job = type('FakeJob', (), {'data': datetime.now(TIMEZONE) + timedelta(hours=1)})
-    await send_reminder(context)
-
-async def test_scanin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await auto_scanin_job(context)
-
 async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
     try:
         next_run = context.job.data
@@ -618,8 +611,6 @@ application.add_handler(CommandHandler("cancelauto", cancelauto))
 application.add_handler(CommandHandler("cancel", cancel))
 application.add_handler(CommandHandler("next", next_mission))
 application.add_handler(CommandHandler("status", status))
-application.add_handler(CommandHandler("testreminder", test_reminder))
-application.add_handler(CommandHandler("testscanin", test_scanin))
 application.post_init = post_init
 
 async def handle_health_check(request):
