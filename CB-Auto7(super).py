@@ -331,6 +331,7 @@ async def daily_summary(context: ContextTypes.DEFAULT_TYPE):
 
 # Update post_init
 async def post_init(application):
+    logger.info("🔧 post_init() triggered ✅")
     try:
         logger.info("🔧 post_init() triggered ✅")
         await application.bot.set_my_commands([
@@ -363,7 +364,10 @@ async def post_init(application):
 
     except Exception as e:
         logger.error(f"❌ post_init() failed: {e}")
-
+        await application.bot.send_message(
+            chat_id=CHAT_ID,
+            text="🚨 post_init() failed — jobs not scheduled!"
+        )
 async def perform_scan_in(bot, chat_id, context=None):
     timestamp = datetime.now(TIMEZONE).strftime("%Y%m%d-%H%M%S")
     driver, (lat, lon) = create_driver()
