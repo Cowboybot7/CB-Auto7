@@ -143,20 +143,16 @@ async def auto_scanin_job(context: ContextTypes.DEFAULT_TYPE):
             return
         is_auto_scan_running = True
 
-    try:
-        chat_id = os.getenv('CHAT_ID')
-        logger.info("🔄 Starting automated mission...")
-        await context.bot.send_message(chat_id, "⏰ Starting automated mission...")
-        success = await perform_scan_in(context.bot, chat_id)
-    except Exception as e:
-        logger.error(f"Automated mission failed: {str(e)}")
-        await context.bot.send_message(chat_id, f"❌ Automated mission failed: {str(e)}")
-    finally:
-        # Schedule next job FIRST while lock is still held
-        schedule_next_scan(context.job_queue)
-
-        # Then release the lock
-        async with scan_lock:
+        try:
+            chat_id = os.getenv('CHAT_ID')
+            logger.info("🔄 Starting automated mission...")
+            await context.bot.send_message(chat_id, "⏰ Starting automated mission...")
+            success = await perform_scan_in(context.bot, chat_id)
+        except Exception as e:
+            logger.error(f"❌ Automated mission failed: {str(e)}")
+            await context.bot.send_message(chat_id, f"❌ Automated mission failed: {str(e)}")
+        finally:
+            schedule_next_scan(context.job_queue)
             is_auto_scan_running = False
 
 def schedule_next_scan(job_queue, force_next_morning=False):
