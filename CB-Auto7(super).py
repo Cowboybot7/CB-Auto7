@@ -610,19 +610,10 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Put these above main()
 
-async def handle_health_check(request):
-    return web.Response(text="OK")
-
-async def handle_telegram_webhook(request):
-    data = await request.json()
-    update = Update.de_json(data, bot_context["application"].bot)
-    await bot_context["application"].process_update(update)
-    return web.Response(text="OK")
-    
 async def main():
     application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
 
-    # Register command handlers
+    # Add command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("letgo", letgo))
     application.add_handler(CommandHandler("cancelauto", cancelauto))
@@ -630,38 +621,28 @@ async def main():
     application.add_handler(CommandHandler("next", next_mission))
     application.add_handler(CommandHandler("status", status))
 
+    # Initialize app and schedule jobs
     await application.initialize()
+    await post_init(application)  # schedules auto scanin, reminder, watchdog, daily summary
 
-    try:
-        await post_init(application)
-    except Exception as e:
-        logger.error(f"❌ post_init() failed in main(): {e}")
-        await application.bot.send_message(chat_id=CHAT_ID, text="🚨 post_init() failed during main()")
-
-    # Register webhook endpoints
-    global bot_context
-    bot_context["application"] = application
-
+    # Health check server to keep Render alive
     app = web.Application()
-    app.router.add_get("/healthz", handle_health_check)
-    app.router.add_post("/webhook", handle_telegram_webhook)
-    app.router.add_get("/", lambda request: web.Response(text="✅ Bot is running"))
+    app.router.add_get("/healthz", lambda r: web.Response(text="OK"))
+    app.router.add_get("/", lambda r: web.Response(text="✅ Bot is alive"))
 
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
     await site.start()
 
-    await application.bot.set_webhook(os.getenv("WEBHOOK_URL"))
-    logger.info("✅ Webhook set")
+    # Start polling (this keeps the bot AND job queue alive!)
+    await application.run_polling()
 
-    await asyncio.Event().wait()
-
+# Run the bot
 if __name__ == "__main__":
     import sys
     try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         print("👋 Shutting down...")
         sys.exit(0)
