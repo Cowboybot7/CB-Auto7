@@ -608,12 +608,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message, parse_mode="Markdown")
 
 #Telegram App
-application = (
-    Application.builder()
-    .token(os.getenv("TELEGRAM_TOKEN"))
-    .post_init(post_init)  # ✅ Automatically runs after .initialize()
-    .build()
-)
+application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("letgo", letgo))
 application.add_handler(CommandHandler("cancelauto", cancelauto))
@@ -651,7 +646,14 @@ async def main():
 
     await application.bot.set_webhook(os.getenv("WEBHOOK_URL"))
     print("✅ Webhook set")
-    
+
+    # ✅ Manually call post_init()
+    try:
+        await post_init(application)
+    except Exception as e:
+        logger.error(f"❌ post_init() failed in main(): {e}")
+        await application.bot.send_message(chat_id=CHAT_ID, text="🚨 post_init() failed during main()")
+
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
