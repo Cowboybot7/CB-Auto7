@@ -61,6 +61,7 @@ driver_lock = Lock()
 scan_tasks = {}
 is_auto_scan_running = False
 scan_lock = Lock()  # Async-safe lock
+bot_context = {}
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -607,32 +608,34 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(message, parse_mode="Markdown")
 
-#Telegram App
-application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("letgo", letgo))
-application.add_handler(CommandHandler("cancelauto", cancelauto))
-application.add_handler(CommandHandler("cancel", cancel))
-application.add_handler(CommandHandler("next", next_mission))
-application.add_handler(CommandHandler("status", status))
-
-async def handle_health_check(request):
-    return web.Response(text="OK")
-
 async def handle_telegram_webhook(request):
-    try:
-        data = await request.json()
-        update = Update.de_json(data, application.bot)
-        await application.process_update(update)
-        return web.Response(text="OK")
-    except Exception as e:
-        import traceback
-        logger.error(f"Webhook handler failed: {e}")
-        logger.error(traceback.format_exc())
-        return web.Response(status=500, text="Webhook failed")
-
+    data = await request.json()
+    update = Update.de_json(data, bot_context["application"].bot)
+    await bot_context["application"].process_update(update)
+    return web.Response(text="OK")
+    
 async def main():
+    application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
+
+    # Register command handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("letgo", letgo))
+    application.add_handler(CommandHandler("cancelauto", cancelauto))
+    application.add_handler(CommandHandler("cancel", cancel))
+    application.add_handler(CommandHandler("next", next_mission))
+    application.add_handler(CommandHandler("status", status))
+
     await application.initialize()
+
+    try:
+        await post_init(application)
+    except Exception as e:
+        logger.error(f"❌ post_init() failed in main(): {e}")
+        await application.bot.send_message(chat_id=CHAT_ID, text="🚨 post_init() failed during main()")
+
+    # Register webhook endpoints
+    global bot_context
+    bot_context["application"] = application
 
     app = web.Application()
     app.router.add_get("/healthz", handle_health_check)
@@ -645,14 +648,7 @@ async def main():
     await site.start()
 
     await application.bot.set_webhook(os.getenv("WEBHOOK_URL"))
-    print("✅ Webhook set")
-
-    # ✅ Manually call post_init()
-    try:
-        await post_init(application)
-    except Exception as e:
-        logger.error(f"❌ post_init() failed in main(): {e}")
-        await application.bot.send_message(chat_id=CHAT_ID, text="🚨 post_init() failed during main()")
+    logger.info("✅ Webhook set")
 
     await asyncio.Event().wait()
 
