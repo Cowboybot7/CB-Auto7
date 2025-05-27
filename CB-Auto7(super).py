@@ -604,14 +604,18 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message, parse_mode="Markdown")
 
 #Telegram App
-application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
+application = (
+    Application.builder()
+    .token(os.getenv("TELEGRAM_TOKEN"))
+    .post_init(post_init)  # ✅ Automatically runs after .initialize()
+    .build()
+)
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("letgo", letgo))
 application.add_handler(CommandHandler("cancelauto", cancelauto))
 application.add_handler(CommandHandler("cancel", cancel))
 application.add_handler(CommandHandler("next", next_mission))
 application.add_handler(CommandHandler("status", status))
-application.post_init = post_init
 
 async def handle_health_check(request):
     return web.Response(text="OK")
@@ -643,8 +647,7 @@ async def main():
 
     await application.bot.set_webhook(os.getenv("WEBHOOK_URL"))
     print("✅ Webhook set")
-    await post_init(application)
-    # ✅ Keep running indefinitely (instead of updater.wait_closed())
+    
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
