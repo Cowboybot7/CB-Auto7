@@ -203,13 +203,13 @@ def schedule_next_scan(job_queue, force_next_morning=False):
     existing_reminder = job_queue.get_jobs_by_name("reminder")
 
     if existing_auto:
-        logger.info("📌 Auto mission already scheduled. Skipping reschedule.")
+        logger.info(f"📌 Auto mission already scheduled. Next run should be at {next_run}")
     else:
         job_queue.run_once(auto_scanin_job, when=delay_seconds, name="auto_scanin", data=next_run)
         logger.info(f"✅ Scheduled next mission at {next_run.strftime('%Y-%m-%d %H:%M:%S')} ICT")
-
+    
     if existing_reminder:
-        logger.info("📌 Reminder already scheduled. Skipping reschedule.")
+        logger.info(f"📌 Reminder already scheduled. Next reminder should be at {reminder_time}")
     elif delay_reminder > 0:
         job_queue.run_once(send_reminder, when=delay_reminder, data=reminder_time, name="reminder")
         logger.info(f"⏰ Scheduled reminder at {reminder_time.strftime('%Y-%m-%d %H:%M:%S')} ICT")
@@ -333,6 +333,7 @@ async def daily_summary(context: ContextTypes.DEFAULT_TYPE):
 async def delayed_schedule(application):
     while not application.job_queue._running:
         await asyncio.sleep(0.5)
+    logger.info("🕓 JobQueue is running. Proceeding with schedule_next_scan()")
     schedule_next_scan(application.job_queue)
 
 # Update post_init
@@ -374,6 +375,8 @@ async def post_init(application):
             chat_id=CHAT_ID,
             text="🚨 post_init() failed — jobs not scheduled!"
         )
+    logger.info(f"📋 Jobs scheduled at startup: {[job.name for job in application.job_queue.jobs()]}")
+
 async def perform_scan_in(bot, chat_id, context=None):
     timestamp = datetime.now(TIMEZONE).strftime("%Y%m%d-%H%M%S")
     driver, (lat, lon) = create_driver()
