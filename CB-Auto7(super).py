@@ -329,10 +329,9 @@ async def daily_summary(context: ContextTypes.DEFAULT_TYPE):
             chat_id=CHAT_ID,
             text="📭 No auto mission currently scheduled."
         )
-
+        
 async def delayed_schedule(application):
-    while not application.job_queue._running:
-        await asyncio.sleep(0.5)
+    await asyncio.sleep(1.0)  # 1-second delay instead of checking _running
     logger.info("🕓 JobQueue is running. Proceeding with schedule_next_scan()")
     schedule_next_scan(application.job_queue)
 
