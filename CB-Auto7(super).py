@@ -330,6 +330,11 @@ async def daily_summary(context: ContextTypes.DEFAULT_TYPE):
             text="📭 No auto mission currently scheduled."
         )
 
+async def delayed_schedule(application):
+    while not application.job_queue._running:
+        await asyncio.sleep(0.5)
+    schedule_next_scan(application.job_queue)
+
 # Update post_init
 async def post_init(application):
     logger.info("🔧 post_init() triggered ✅")
@@ -345,7 +350,7 @@ async def post_init(application):
         ])
 
         # Schedule the next scan
-        schedule_next_scan(application.job_queue)
+        create_task(delayed_schedule(application))
 
         # 🛡 Watchdog: every hour
         application.job_queue.run_repeating(
