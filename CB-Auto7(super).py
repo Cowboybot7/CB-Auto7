@@ -376,6 +376,7 @@ async def post_init(application):
             text="🚨 post_init() failed — jobs not scheduled!"
         )
     logger.info(f"📋 Jobs scheduled at startup: {[job.name for job in application.job_queue.jobs()]}")
+    logger.info(f"📋 Final Job Queue: {[job.name for job in application.job_queue.jobs()]}")
 
 async def perform_scan_in(bot, chat_id, context=None):
     timestamp = datetime.now(TIMEZONE).strftime("%Y%m%d-%H%M%S")
