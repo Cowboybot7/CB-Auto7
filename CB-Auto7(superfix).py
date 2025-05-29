@@ -202,9 +202,9 @@ def schedule_next_scan(job_queue):
                     reminder_name = "reminder"
 
                     job_func = {
-                        "morning": auto_morning_scan,
-                        "evening": auto_evening_scan,
-                        "afternoon": auto_afternoon_scan
+                        "morning": auto_scanin_morning_job,
+                        "evening": auto_scanin_evening_job,
+                        "afternoon": auto_scanin_afternoon_job,
                     }[scan_type]
                     logger.info(f"🎯 Selected scan type: {scan_type.upper()} for {scheduled_time.strftime('%A')} ({scheduled_time.strftime('%Y-%m-%d %H:%M:%S')} ICT)")
                     # Cancel existing scan jobs if needed
