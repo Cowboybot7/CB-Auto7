@@ -69,10 +69,13 @@ last_run_evening = None
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
+for noisy in ("httpx", "httpcore", "telegram.ext.ExtBot", "apscheduler.scheduler"):
+    logging.getLogger(noisy).setLevel(logging.WARNING)
+    
 def generate_random_coordinates():
     """Generate random coordinates within MAX_DEVIATION_METERS of base location"""
     # Convert meters to degrees (approximate)
