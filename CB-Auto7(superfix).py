@@ -136,15 +136,16 @@ async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def auto_scanin_morning_job(context: ContextTypes.DEFAULT_TYPE):
-    await execute_auto_scan(context, "morning")
+    await execute_auto_scan("morning", context)  ✅
 
 async def auto_scanin_evening_job(context: ContextTypes.DEFAULT_TYPE):
-    await execute_auto_scan(context, "evening")
+    await execute_auto_scan("evening", context)  ✅
 
-async def auto_scanin_afternoon_job(context):
-    await execute_auto_scan(context, "afternoon")
+async def auto_scanin_afternoon_job(context: ContextTypes.DEFAULT_TYPE):
+    await execute_auto_scan("afternoon", context)  ✅
 
 async def execute_auto_scan(scan_type: str, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"🔁 execute_auto_scan triggered with scan_type={scan_type}")
     global is_auto_scan_running
     async with scan_lock:
         if is_auto_scan_running:
@@ -156,7 +157,7 @@ async def execute_auto_scan(scan_type: str, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=CHAT_ID, text=f"⏰ Starting {scan_type} auto scan-in...")
         logger.info(f"🔄 {scan_type.capitalize()} auto scan started")
 
-        success = await perform_scan_in(context.bot, CHAT_ID)
+        success = await perform_scan_in(context.bot, CHAT_ID, scan_type=scan_type)
 
         # ✅ Send success confirmation message
         if success:
@@ -434,7 +435,8 @@ async def post_init(application):
     logger.info(f"📋 Jobs scheduled at startup: {[job.name for job in application.job_queue.jobs()]}")
     logger.info(f"📋 Final Job Queue: {[job.name for job in application.job_queue.jobs()]}")
 
-async def perform_scan_in(bot, chat_id, context=None):
+async def perform_scan_in(bot, chat_id, scan_type=None, context=None):
+    logger.info(f"🚀 perform_scan_in triggered: scan_type={scan_type}, chat_id={chat_id}")
     timestamp = datetime.now(TIMEZONE).strftime("%Y%m%d-%H%M%S")
     driver, (lat, lon) = create_driver()
     screenshot_file = None
