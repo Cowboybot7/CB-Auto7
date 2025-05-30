@@ -632,7 +632,16 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(message, parse_mode="Markdown")
 
-# Put these above main()
+async def start_health_server():
+    app = web.Application()
+    app.router.add_get("/healthz", lambda r: web.Response(text="OK"))
+    app.router.add_get("/", lambda r: web.Response(text="✅ Bot is alive"))
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
+    await site.start()
+    print("🌐 HTTP server running on /healthz")
 
 async def main():
     application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
@@ -645,35 +654,16 @@ async def main():
     application.add_handler(CommandHandler("next", next_mission))
     application.add_handler(CommandHandler("status", status))
 
-    await application.initialize()
     await post_init(application)
-    await application.start()  # Instead of run_polling()
-    await application.updater.start_polling()
-    # Start your own dummy aiohttp server for health checks
-    app = web.Application()
-    app.router.add_get("/healthz", lambda r: web.Response(text="OK"))
-    app.router.add_get("/", lambda r: web.Response(text="✅ Bot is alive"))
-
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
-    await site.start()
-
-    logger.info("✅ Bot started and HTTP server is up.")
-
-    # Wait forever — keeps everything running
-    await asyncio.Event().wait()
+    await asyncio.gather(
+        application.run_polling(),
+        start_health_server(),
+    )
 
 # Run the bot
 if __name__ == "__main__":
     import asyncio
-
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Render environment: schedule as task
-            loop.create_task(main())
-        else:
-            loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         print("👋 Shutting down...")
