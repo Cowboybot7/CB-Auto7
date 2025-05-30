@@ -663,7 +663,14 @@ async def main():
 # Run the bot
 if __name__ == "__main__":
     import asyncio
+
     try:
-        asyncio.run(main())
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Render environment or already running loop
+            loop.create_task(main())
+        else:
+            loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("👋 Shutting down...")
+
