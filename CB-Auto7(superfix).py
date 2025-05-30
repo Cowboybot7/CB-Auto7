@@ -646,7 +646,6 @@ async def start_health_server():
 async def main():
     application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
 
-    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("letgo", letgo))
     application.add_handler(CommandHandler("cancelauto", cancelauto))
@@ -654,18 +653,18 @@ async def main():
     application.add_handler(CommandHandler("next", next_mission))
     application.add_handler(CommandHandler("status", status))
 
-    # Setup jobs & commands
     await post_init(application)
 
-    # Start health server in background
+    # Start HTTP server
     asyncio.create_task(start_health_server())
 
-    # This will block and run polling
-    await application.run_polling(close_loop=False)
+    # Start bot manually in running loop
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
 
 if __name__ == "__main__":
     import asyncio
-
     loop = asyncio.get_event_loop()
     loop.create_task(main())
     loop.run_forever()
