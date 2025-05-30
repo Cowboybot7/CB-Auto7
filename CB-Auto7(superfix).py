@@ -347,19 +347,30 @@ async def watchdog_check(context: ContextTypes.DEFAULT_TYPE):
         schedule_next_scan(job_queue)
 
 async def debugjobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Optional: Add admin check
     user_id = str(update.effective_user.id)
-    if user_id != "YOUR_ADMIN_TELEGRAM_ID":  # Replace with your actual admin ID
-        return  # Prevent unauthorized access
-    
-    # Fetch jobs from the job queue
+
+    if user_id not in AUTHORIZED_USERS:
+        logger.warning(f"❌ Unauthorized access to /debugjobs by user_id={user_id}")
+        await update.message.reply_text("⛔ You're not authorized to use this command.")
+        return
+
     jobs = context.job_queue.jobs()
+    logger.info(f"🧪 /debugjobs called by {user_id}. Found {len(jobs)} jobs.")
+
+    if not jobs:
+        await update.message.reply_text("📭 No scheduled jobs found.")
+        return
+
     message = "🧪 Scheduled jobs:\n"
     for job in jobs:
-        job_time = job.data.strftime('%Y-%m-%d %H:%M:%S') if job.data else "No time"
+        try:
+            job_time = job.data.strftime('%Y-%m-%d %H:%M:%S') if job.data else "⏳ No scheduled time"
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to read job time: {e}")
+            job_time = "❓ Unknown"
         message += f"• `{job.name}` → {job_time}\n"
 
-    await update.message.reply_text(message)
+    await update.message.reply_text(message, parse_mode="Markdown")
 
 async def daily_summary(context: ContextTypes.DEFAULT_TYPE):
     auto_jobs = context.job_queue.get_jobs_by_name("auto_scanin")
