@@ -220,7 +220,7 @@ def schedule_next_scan(job_queue):
                         job.schedule_removal()
 
                     logger.info(f"✅ Scheduling scan job: {scan_type.lower()}_scanin at {scan_time}")
-    job_queue.run_once(job_func, when=delay, name=job_name, data=scheduled_time)
+                    job_queue.run_once(job_func, when=delay, name=job_name, data=scheduled_time)
                     
                     logger.info(f"✅ Scheduled {scan_type} scan at {scheduled_time.strftime('%Y-%m-%d %H:%M:%S')} ICT")
 
@@ -229,7 +229,7 @@ def schedule_next_scan(job_queue):
 
                     if delay_reminder > 0:
                         logger.info(f"✅ Scheduling scan job: {scan_type.lower()}_scanin at {scan_time}")
-    job_queue.run_once(send_reminder, when=delay_reminder, data=reminder_time, name=reminder_name)
+                        job_queue.run_once(send_reminder, when=delay_reminder, data=reminder_time, name=reminder_name)
                         logger.info(f"⏰ Scheduled reminder at {reminder_time.strftime('%Y-%m-%d %H:%M:%S')} ICT")
 
                     return
