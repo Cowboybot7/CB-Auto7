@@ -144,7 +144,7 @@ async def auto_scanin_evening_job(context: ContextTypes.DEFAULT_TYPE):
 async def auto_scanin_afternoon_job(context):
     await execute_auto_scan(context, "afternoon")
 
-async def run_scan(scan_type: str, context: ContextTypes.DEFAULT_TYPE):
+async def execute_auto_scan(scan_type: str, context: ContextTypes.DEFAULT_TYPE):
     global is_auto_scan_running
     async with scan_lock:
         if is_auto_scan_running:
