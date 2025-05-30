@@ -325,12 +325,38 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ Operation cancelled")
 
 async def watchdog_check(context: ContextTypes.DEFAULT_TYPE):
-    auto_jobs = [job for job in context.job_queue.jobs() if job.name.endswith("_scanin")]
-    if not auto_jobs:
-        logger.warning("🚨 No auto_scanin job found — rescheduling now.")
-        schedule_next_scan(context.job_queue)
+    logger.info("👀 Running watchdog check...")
+
+    job_queue = context.job_queue
+    now = datetime.now(TIMEZONE)
+    today = now.date()
+
+    active_jobs = job_queue.jobs()
+
+    scanin_jobs = [
+        job for job in active_jobs
+        if job.name.endswith("_scanin") and job.data and job.data.date() == today
+    ]
+
+    if scanin_jobs:
+        for job in scanin_jobs:
+            job_time = job.data.strftime('%Y-%m-%d %H:%M:%S')
+            logger.info(f"✅ Found scheduled job today: {job.name} at {job_time}")
     else:
-        logger.info("✅ Watchdog: auto_scanin job is scheduled.")
+        logger.warning("⚠️ No scan-in job found for today. Triggering schedule_next_scan().")
+        schedule_next_scan(job_queue)
+
+async def debugjobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_user.id) != os.getenv("ADMIN_TELEGRAM_ID"):
+        return  # protect it
+
+    jobs = context.job_queue.jobs()
+    message = "🧪 Scheduled jobs:\n"
+    for job in jobs:
+        scheduled = job.data.strftime('%Y-%m-%d %H:%M:%S') if job.data else "No data"
+        message += f"• `{job.name}` → {scheduled}\n"
+
+    await update.message.reply_text(message)
 
 async def daily_summary(context: ContextTypes.DEFAULT_TYPE):
     auto_jobs = context.job_queue.get_jobs_by_name("auto_scanin")
@@ -363,6 +389,7 @@ async def post_init(application):
             BotCommand("cancel", "Cancel ongoing operation"),
             BotCommand("next", "Show next auto mission time"),
             BotCommand("status", "Show status"),
+            BotCommand("debugjobs", debugjobs),
         ])
 
         # Schedule the next scan
@@ -652,6 +679,7 @@ async def main():
     application.add_handler(CommandHandler("cancel", cancel))
     application.add_handler(CommandHandler("next", next_mission))
     application.add_handler(CommandHandler("status", status))
+    application.add_handler(CommandHandler("debugjobs", debugjobs))
 
     await post_init(application)
 
