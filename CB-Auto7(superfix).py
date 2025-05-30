@@ -389,7 +389,7 @@ async def post_init(application):
             BotCommand("cancel", "Cancel ongoing operation"),
             BotCommand("next", "Show next auto mission time"),
             BotCommand("status", "Show status"),
-            BotCommand("debugjobs", debugjobs),
+            BotCommand("debugjobs", "debugjobs"),
         ])
 
         # Schedule the next scan
