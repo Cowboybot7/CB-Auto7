@@ -636,7 +636,7 @@ async def start_health_server():
     app = web.Application()
     app.router.add_get("/healthz", lambda r: web.Response(text="OK"))
     app.router.add_get("/", lambda r: web.Response(text="✅ Bot is alive"))
-    
+
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
@@ -654,23 +654,19 @@ async def main():
     application.add_handler(CommandHandler("next", next_mission))
     application.add_handler(CommandHandler("status", status))
 
+    # Setup jobs & commands
     await post_init(application)
-    await asyncio.gather(
-        application.run_polling(),
-        start_health_server(),
-    )
 
-# Run the bot
+    # Start health server in background
+    asyncio.create_task(start_health_server())
+
+    # This will block and run polling
+    await application.run_polling(close_loop=False)
+
 if __name__ == "__main__":
     import asyncio
 
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Render environment or already running loop
-            loop.create_task(main())
-        else:
-            loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         print("👋 Shutting down...")
-
