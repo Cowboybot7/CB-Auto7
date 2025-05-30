@@ -347,14 +347,17 @@ async def watchdog_check(context: ContextTypes.DEFAULT_TYPE):
         schedule_next_scan(job_queue)
 
 async def debugjobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_user.id) != os.getenv("ADMIN_TELEGRAM_ID"):
-        return  # protect it
-
+    # Optional: Add admin check
+    user_id = str(update.effective_user.id)
+    if user_id != "YOUR_ADMIN_TELEGRAM_ID":  # Replace with your actual admin ID
+        return  # Prevent unauthorized access
+    
+    # Fetch jobs from the job queue
     jobs = context.job_queue.jobs()
     message = "🧪 Scheduled jobs:\n"
     for job in jobs:
-        scheduled = job.data.strftime('%Y-%m-%d %H:%M:%S') if job.data else "No data"
-        message += f"• `{job.name}` → {scheduled}\n"
+        job_time = job.data.strftime('%Y-%m-%d %H:%M:%S') if job.data else "No time"
+        message += f"• `{job.name}` → {job_time}\n"
 
     await update.message.reply_text(message)
 
