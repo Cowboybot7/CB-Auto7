@@ -311,7 +311,12 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 os.remove(filename)
     else:
         await update.message.reply_text("✅ Operation cancelled")
-            
+        
+async def watchdog_check(context: ContextTypes.DEFAULT_TYPE):
+    if not context.job_queue.get_jobs_by_name("auto_scanin"):
+        logger.warning("🚨 auto_scanin job missing. Rescheduling.")
+        schedule_next_scan(context.job_queue)
+        
 # Update post_init
 async def post_init(application):
     try:
@@ -324,6 +329,13 @@ async def post_init(application):
             BotCommand("next", "Show next auto mission time")
         ])
         schedule_next_scan(application.job_queue)
+        application.job_queue.run_repeating(
+            watchdog_check,
+            interval=3600,  # every 1 hour
+            first=60,       # first run after 60 seconds
+            name="watchdog"
+        )
+        logger.info("🔍 Watchdog scheduled to run every hour.")
     except Exception as e:
         logger.error(f"❌ post_init() failed: {e}")
     
