@@ -64,7 +64,7 @@ scan_lock = Lock()  # Async-safe lock
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
@@ -544,6 +544,13 @@ async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task = create_task(task_wrapper())
     logger.info("🎯 Mission task scheduled for execution")
     scan_tasks[chat_id] = task
+    
+async def delayed_schedule(application):
+    while not application.job_queue._running:
+        logger.debug("⏳ Waiting for job queue to be ready...")
+        await asyncio.sleep(1)
+    logger.info("🕓 JobQueue is running. Proceeding with schedule_next_scan()")
+    schedule_next_scan(application.job_queue)
 
 #Telegram App
 application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
@@ -585,7 +592,7 @@ async def main():
     await application.bot.set_webhook(os.getenv("WEBHOOK_URL"))
     print("✅ Webhook set")
     await post_init(application)
-    # ✅ Keep running indefinitely (instead of updater.wait_closed())
+    asyncio.create_task(delayed_schedule(application))
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
