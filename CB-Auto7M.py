@@ -558,10 +558,8 @@ async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     scan_tasks[chat_id] = task
     
 async def delayed_schedule(application):
-    while not application.job_queue._running:
-        logger.debug("⏳ Waiting for job queue to be ready...")
-        await asyncio.sleep(1)
-    logger.info("🕓 JobQueue is running. Proceeding with schedule_next_scan()")
+    await asyncio.sleep(10)  # ✅ Give it 10 seconds for the scheduler to fully start
+    logger.info("🕓 JobQueue assumed ready — running schedule_next_scan()")
     schedule_next_scan(application.job_queue)
 
 #Telegram App
