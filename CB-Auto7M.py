@@ -54,6 +54,7 @@ BASE_LONGITUDE = float(os.getenv('BASE_LONGITUDE', '104.911449'))
 MAX_DEVIATION_METERS = 150
 CHAT_ID = os.getenv('CHAT_ID')
 
+application = None
 active_drivers = {}
 driver_lock = Lock()
 scan_tasks = {}
@@ -455,34 +456,53 @@ async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task = create_task(task_wrapper())
     scan_tasks[chat_id] = task
 
-async def main():
-    application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
+async def handle_health_check(request):
+    return web.Response(text="OK")
 
+async def handle_telegram_webhook(request):
+    try:
+        data = await request.json()
+        update = Update.de_json(data, application.bot)
+        await application.process_update(update)
+        return web.Response(text="OK")
+    except Exception as e:
+        import traceback
+        logger.error(f"Webhook handler failed: {e}")
+        logger.error(traceback.format_exc())
+        return web.Response(status=500, text="Webhook failed")
+
+async def main():
+    global application
+    application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
+    await application.initialize()
+    
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("letgo", letgo))
     application.add_handler(CommandHandler("cancelauto", cancelauto))
     application.add_handler(CommandHandler("cancel", cancel))
-
-    await application.initialize()
-    await post_init(application)
-    await application.start()
-    await application.start_polling()
-
-    # Health check server
+    
+    application.post_init = post_init
     app = web.Application()
-    app.router.add_get("/healthz", lambda r: web.Response(text="OK"))
-    app.router.add_get("/", lambda r: web.Response(text="✅ Bot is alive"))
+    app.router.add_get("/healthz", handle_health_check)
+    app.router.add_post("/webhook", handle_telegram_webhook)
+    app.router.add_get("/", lambda request: web.Response(text="✅ Bot is running"))
 
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
     await site.start()
 
-    print("✅ Bot and health server running...")
+    await application.bot.set_webhook(os.getenv("WEBHOOK_URL"))
+    print("✅ Webhook set")
+    await post_init(application)
+    # ✅ Keep running indefinitely (instead of updater.wait_closed())
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
+    import sys
     try:
-        asyncio.run(main())
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("👋 Shutting down...")
+        sys.exit(0)
