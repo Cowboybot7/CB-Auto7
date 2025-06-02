@@ -454,42 +454,34 @@ async def letgo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task = create_task(task_wrapper())
     scan_tasks[chat_id] = task
 
-class HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == "/healthz":
-            self.send_response(200)
-            self.send_header("Content-type", "text/plain")
-            self.end_headers()
-            self.wfile.write(b"OK")
-        else:
-            self.send_response(404)
-            self.end_headers()
+async def main():
+    application = Application.builder().token(os.getenv("TELEGRAM_TOKEN")).build()
 
-def run_health_server():
-    port = int(os.getenv("HEALTH_PORT", 8080))
-    server = HTTPServer(("0.0.0.0", port), HealthHandler)
-    print(f"Health server running on port {port}")
-    server.serve_forever()
-    
-if __name__ == "__main__":
-    threading.Thread(target=run_health_server, daemon=True).start() 
-    
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("letgo", letgo))
     application.add_handler(CommandHandler("cancelauto", cancelauto))
     application.add_handler(CommandHandler("cancel", cancel))
-    application.post_init = post_init
 
-    if os.getenv("USE_WEBHOOK", "false").lower() == "true":
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=int(os.getenv('PORT', 8000)),
-            webhook_url=os.getenv('WEBHOOK_URL'),
-            allowed_updates=Update.ALL_TYPES,
-        )
-    else:
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
-    
+    await application.initialize()
+    await post_init(application)
+    await application.start()
+    await application.start_polling()
+
+    # Health check server
+    app = web.Application()
+    app.router.add_get("/healthz", lambda r: web.Response(text="OK"))
+    app.router.add_get("/", lambda r: web.Response(text="✅ Bot is alive"))
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
+    await site.start()
+
+    print("✅ Bot and health server running...")
+    await asyncio.Event().wait()
+
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("👋 Shutting down...")
